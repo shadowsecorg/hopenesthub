@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const routes = require('./routes');
+const db = require('./models');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -32,6 +33,7 @@ app.get('/', (req, res) => res.json({ message: 'HopeNest Hub API running' }));
     const client = await pool.connect();
     await client.query('SELECT NOW()');
     client.release();
+    await db.sequelize.authenticate();
     app.listen(port, () => console.log(`Server listening on port ${port}`));
   } catch (err) {
     console.error('Failed to connect to the database', err.message || err);
