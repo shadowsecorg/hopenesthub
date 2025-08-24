@@ -1,0 +1,43 @@
+<h2>Reports</h2>
+<div class="card p-3 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <select class="form-select" id="reportPatientFilter">
+                <option value="">Select Patient</option>
+                <% (patients||[]).forEach(p => { %>
+                <option value="<%= p.id %>"><%= p.User?.name %> (PT<%= p.id %>)</option>
+                <% }) %>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-success w-100" onclick="exportToPDF('reports')">Export as PDF</button>
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-success w-100" onclick="exportToExcel('reports')">Export as Excel</button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Date</th>
+                    <th>Summary</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% (reports||[]).forEach(r => { %>
+                <tr>
+                    <td>PT<%= r.patient_id %></td>
+                    <td><%= new Date(r.created_at).toISOString().slice(0,10) %></td>
+                    <td><%= r.summary || '' %></td>
+                    <td><%= r.details || '' %></td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+

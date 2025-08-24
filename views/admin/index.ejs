@@ -1,0 +1,52 @@
+<div class="p-4">
+        <h2>Admin Dashboard</h2>
+        <div class="row mb-4">
+          <div class="col-md-4"><div class="card p-3"><h5>Active Patients</h5><h3><%= totals.totalPatients %></h3></div></div>
+          <div class="col-md-4"><div class="card p-3"><h5>Recent Alerts</h5><h3><%= totals.recentAlerts %></h3></div></div>
+          <div class="col-md-4"><div class="card p-3"><h5>Total Users</h5><h3><%= totals.totalUsers %></h3></div></div>
+        </div>
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card p-3">
+              <h5>Heart Rate</h5>
+              <div class="chart-container"><canvas id="heartRateChart"></canvas></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card p-3">
+              <h5>Sleep Quality</h5>
+              <div class="chart-container"><canvas id="sleepQualityChart"></canvas></div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card p-3">
+              <h5>Physical Activity</h5>
+              <div class="chart-container"><canvas id="activityChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card p-3">
+              <h5>Overall User Status</h5>
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item">Stable: 120</li>
+                <li class="list-group-item">At Risk: 25</li>
+                <li class="list-group-item">Critical: 5</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card p-3">
+              <h5>Alert Summary</h5>
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item">High Heart Rate: 7</li>
+                <li class="list-group-item">Poor Sleep: 3</li>
+                <li class="list-group-item">Low Activity: 2</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+

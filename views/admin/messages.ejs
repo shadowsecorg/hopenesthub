@@ -1,0 +1,66 @@
+<div class="p-4">
+        <h2>Messages</h2>
+        <div class="card p-3 mb-4">
+          <h5>Send New Message</h5>
+          <form id="sendMessageForm" method="post" action="/admin/messages/send">
+            <div class="row">
+              <div class="col-md-4">
+                <select class="form-select mb-3" id="recipientType">
+                  <option value="individual">Individual</option>
+                  <option value="group">Group</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select class="form-select mb-3" id="recipient">
+                  <option value="">Select Recipient</option>
+                  <option value="PT12345">John Doe (PT12345)</option>
+                  <option value="PT67890">Jane Smith (PT67890)</option>
+                </select>
+                <select class="form-select mb-3" id="groupRecipient">
+                  <option value="">Select Group</option>
+                  <option value="patients">All Patients</option>
+                  <option value="caregivers">All Caregivers</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select class="form-select mb-3" id="messageTemplate">
+                  <option value="">Select Template</option>
+                  <option value="reminder">Medication Reminder</option>
+                  <option value="checkup">Checkup Schedule</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3">
+              <textarea class="form-control" id="messageContent" name="content" rows="5" placeholder="Type your message here" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Message</button>
+          </form>
+        </div>
+        <div class="card p-3">
+          <h5>Message History</h5>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Message</th>
+                  <th>Date</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% (messages || []).forEach(m => { %>
+                  <tr>
+                    <td><%= m.receiver_id || 'Group' %></td>
+                    <td><%= m.content %></td>
+                    <td><%= m.created_at?.toISOString?.() || '' %></td>
+                    <td><%= (m.receiver_id ? 'Individual' : 'Group') %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+

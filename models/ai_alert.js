@@ -15,6 +15,7 @@ module.exports = (sequelize, DataTypes) => {
       patient_id: { type: DataTypes.INTEGER },
       alert_type: { type: DataTypes.STRING(100) },
       severity: { type: DataTypes.STRING(20) },
+      status: { type: DataTypes.STRING(20), defaultValue: 'active' },
       description: { type: DataTypes.TEXT },
       created_at: { type: DataTypes.DATE }
     },

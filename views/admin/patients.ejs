@@ -1,0 +1,152 @@
+<div class="p-4">
+  <h2>Patient Status</h2>
+  <div class="card p-3 mb-4">
+    <form class="row g-2 align-items-center" method="get" action="/admin/patients">
+      <div class="col-md-3"><input type="text" class="form-control" name="q" placeholder="Search by Name"></div>
+      <div class="col-md-3"><input type="text" class="form-control" name="pid" placeholder="Search by Patient ID"></div>
+      <div class="col-md-3">
+        <select class="form-select" name="status">
+          <option value="">All Health Statuses</option>
+          <option value="stable">Stable</option>
+          <option value="at-risk">At Risk</option>
+          <option value="critical">Critical</option>
+        </select>
+      </div>
+      <div class="col-md-3 text-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPatientModal">Add Patient</button></div>
+    </form>
+  </div>
+                <div class="card p-3 mb-4">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Patient ID</th>
+                                    <th>Health Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% (patients || []).forEach(function(p){ %>
+                                  <tr>
+                                    <td><%= p.User?.name || '-' %></td>
+                                    <td><%= p.id %></td>
+                                    <td><%= p.health_status || 'Stable' %></td>
+                                    <td>
+                                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#patientDetailsModal">View Details</button>
+                                      <form class="d-inline" method="post" action="/admin/patients/<%= p.id %>/delete"><button class="btn btn-sm btn-danger">Delete</button></form>
+                                    </td>
+                                  </tr>
+                                <% }) %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+  <!-- Add Patient Modal -->
+  <div class="modal fade" id="addPatientModal" tabindex="-1" aria-labelledby="addPatientModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post" action="/admin/patients">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addPatientModalLabel">Add Patient</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3"><label class="form-label">User ID</label><input name="user_id" class="form-control" required></div>
+            <div class="mb-3"><label class="form-label">Cancer Type</label><input name="cancer_type" class="form-control"></div>
+            <div class="mb-3"><label class="form-label">Diagnosis Date</label><input name="diagnosis_date" type="date" class="form-control"></div>
+            <div class="mb-3"><label class="form-label">Assigned Doctor (User ID)</label><input name="assigned_doctor_id" class="form-control"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+    <div class="modal fade" id="patientDetailsModal" tabindex="-1" aria-labelledby="patientDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="patientDetailsModalLabel">Patient Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Patient Information</h6>
+                    <p><strong>Name:</strong> John Doe</p>
+                    <p><strong>Patient ID:</strong> PT12345</p>
+                    <p><strong>Health Status:</strong> Stable</p>
+                    <hr>
+                    <h6>Wearable Data</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <p><strong>Heart Rate:</strong> 72 bpm</p>
+                            <div class="chart-container">
+                                <canvas id="heartRateChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>Sleep Quality:</strong> 80%</p>
+                            <div class="chart-container">
+                                <canvas id="sleepQualityChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>Activity:</strong> 5000 steps</p>
+                            <div class="chart-container">
+                                <canvas id="activityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Symptoms and Emotions History</h6>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Symptom</th>
+                                    <th>Emotion</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>2025-08-10</td>
+                                    <td>Fatigue</td>
+                                    <td>Anxious</td>
+                                    <td>Reported mild discomfort</td>
+                                </tr>
+                                <tr>
+                                    <td>2025-08-11</td>
+                                    <td>Nausea</td>
+                                    <td>Calm</td>
+                                    <td>Improved after rest</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <hr>
+                    <h6>Active Alerts</h6>
+                    <ul class="list-group">
+                        <li class="list-group-item">High Heart Rate: 2025-08-10 14:30</li>
+                        <li class="list-group-item">Poor Sleep: 2025-08-11 03:00</li>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/frontend/admin-panel/charts.js"></script>
+    <script src="/frontend/admin-panel/script.js"></script>
+
+

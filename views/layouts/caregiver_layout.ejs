@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caregiver Panel - HopeNest Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/frontend/caregiver-panel/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar">
+                <h4 class="text-white">Caregiver Panel</h4>
+                <a href="/caregiver/dashboard" class="nav-link <%= (active==='dashboard'?'active':'') %>">Dashboard</a>
+                <a href="/caregiver/patient-list" class="nav-link <%= (active==='patients'?'active':'') %>">Patient List</a>
+                <a href="/caregiver/under-care" class="nav-link <%= (active==='under-care'?'active':'') %>">Patients Under Care</a>
+                <a href="/caregiver/messages" class="nav-link <%= (active==='messages'?'active':'') %>">Messages</a>
+                <a href="/caregiver/reports" class="nav-link <%= (active==='reports'?'active':'') %>">Reports</a>
+                <a href="/caregiver/recommendations" class="nav-link <%= (active==='recommendations'?'active':'') %>">Recommendations</a>
+                <a href="/caregiver/settings" class="nav-link <%= (active==='settings'?'active':'') %>">Settings</a>
+            </div>
+            <div class="col-md-10 p-4 main-content">
+                <%- body %>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared Modals -->
+    <div class="modal fade" id="addPatientModal" tabindex="-1" aria-labelledby="addPatientModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addPatientModalLabel">Add New Patient</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addPatientForm">
+                        <div class="mb-3">
+                            <label for="patientId" class="form-label">Patient ID</label>
+                            <input type="text" class="form-control" id="patientId" placeholder="Enter Patient ID" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientName" class="form-label">Patient Name</label>
+                            <input type="text" class="form-control" id="patientName" placeholder="Enter Patient Name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientAge" class="form-label">Age</label>
+                            <input type="number" class="form-control" id="patientAge" placeholder="Enter Age" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Patient</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="sendMessageModal" tabindex="-1" aria-labelledby="sendMessageModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sendMessageModalLabel">Send Message</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="sendMessageForm">
+                        <div class="mb-3">
+                            <label for="messageRecipientModal" class="form-label">Recipient</label>
+                            <select class="form-select" id="messageRecipientModal" required>
+                                <option value="">Select Recipient</option>
+                                <% (patients||[]).forEach(p => { %>
+                                <option value="<%= p.user_id %>"><%= p.User?.name %> (Patient)</option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="messageContent" class="form-label">Message</label>
+                            <textarea class="form-control" id="messageContent" rows="4" placeholder="Enter your message" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addRecommendationModal" tabindex="-1" aria-labelledby="addRecommendationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addRecommendationModalLabel">Add Recommendation</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addRecommendationForm">
+                        <div class="mb-3">
+                            <label for="recommendationPatient" class="form-label">Patient</label>
+                            <select class="form-select" id="recommendationPatient" required>
+                                <option value="">Select Patient</option>
+                                <% (patients||[]).forEach(p => { %>
+                                <option value="<%= p.id %>"><%= p.User?.name %> (PT<%= p.id %>)</option>
+                                <% }) %>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="recommendationContent" class="form-label">Recommendation</label>
+                            <textarea class="form-control" id="recommendationContent" rows="4" placeholder="Enter recommendation" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Recommendation</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/frontend/caregiver-panel/charts.js"></script>
+    <script>window.caregiverId = <%= caregiverId || 1 %>;</script>
+    <script src="/frontend/caregiver-panel/script.js"></script>
+</body>
+</html>
+
+

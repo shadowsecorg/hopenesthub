@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: registry.ariam:5000/postgres:13.10-alpine
+    container_name: hopenesthub-postgres
+    environment:
+      POSTGRES_DB: hopenest
+      POSTGRES_USER: hopenest
+      POSTGRES_PASSWORD: hopenest_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

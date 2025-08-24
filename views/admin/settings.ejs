@@ -1,0 +1,68 @@
+<div class="p-4">
+      <h2>Settings</h2>
+      <div class="card p-3 mb-4">
+        <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="roles-tab" data-bs-toggle="tab" data-bs-target="#roles" type="button" role="tab">Roles & Permissions</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot" type="button" role="tab">Chatbot Settings</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="wearable-tab" data-bs-toggle="tab" data-bs-target="#wearable" type="button" role="tab">Wearable Integration</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">Security</button>
+          </li>
+        </ul>
+        <div class="tab-content mt-3" id="settingsTabContent">
+          <div class="tab-pane fade show active" id="roles" role="tabpanel">
+            <h5>Roles & Permissions</h5>
+            <div class="row mb-3">
+              <div class="col-md-6"><button class="btn btn-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#addRoleModal">Add New Role</button></div>
+              <div class="col-md-6"><input type="text" class="form-control" placeholder="Search Roles" id="searchRoles"></div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead><tr><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>
+                <tbody>
+                  <tr><td>Admin</td><td>All Access</td><td><button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editRoleModal">Edit</button> <button class="btn btn-sm btn-danger">Delete</button></td></tr>
+                  <tr><td>Caregiver</td><td>View Patients, Send Messages</td><td><button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editRoleModal">Edit</button> <button class="btn btn-sm btn-danger">Delete</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="chatbot" role="tabpanel">
+            <h5>Chatbot Settings</h5>
+            <form id="chatbotSettingsForm">
+              <div class="mb-3"><label class="form-label">Chatbot Status</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="chatbotStatus" checked><label class="form-check-label" for="chatbotStatus">Enable Chatbot</label></div></div>
+              <div class="mb-3"><label for="chatbotResponses" class="form-label">Default Responses</label><textarea class="form-control" id="chatbotResponses" rows="5">{"greeting": "Hello! How can I assist you today?", "faq": "Please ask about medications or appointments."}</textarea></div>
+              <div class="mb-3"><label for="chatbotPlatform" class="form-label">Chatbot Platform</label><select class="form-select" id="chatbotPlatform"><option value="dialogflow" selected>Dialogflow</option><option value="botpress">Botpress</option></select></div>
+              <button type="submit" class="btn btn-primary">Save Chatbot Settings</button>
+            </form>
+          </div>
+          <div class="tab-pane fade" id="wearable" role="tabpanel">
+            <h5>Wearable Integration</h5>
+            <form id="wearableSettingsForm">
+              <div class="mb-3"><label class="form-label">Google Fit Integration</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="googleFitStatus" checked><label class="form-check-label" for="googleFitStatus">Enable Google Fit</label></div></div>
+              <div class="mb-3"><label for="googleFitApiKey" class="form-label">Google Fit API Key</label><input type="text" class="form-control" id="googleFitApiKey"></div>
+              <div class="mb-3"><label class="form-label">Apple HealthKit Integration</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="healthKitStatus" checked><label class="form-check-label" for="healthKitStatus">Enable HealthKit</label></div></div>
+              <div class="mb-3"><label for="healthKitApiKey" class="form-label">HealthKit API Key</label><input type="text" class="form-control" id="healthKitApiKey"></div>
+              <div class="mb-3"><label class="form-label">Data Sync Frequency</label><select class="form-select"><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="realtime">Real-Time</option></select></div>
+              <button type="submit" class="btn btn-primary">Save Wearable Settings</button>
+            </form>
+          </div>
+          <div class="tab-pane fade" id="security" role="tabpanel">
+            <h5>Security Settings</h5>
+            <form id="securitySettingsForm">
+              <div class="mb-3"><label class="form-label">Two-Factor Authentication</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="twoFactorAuth" checked><label class="form-check-label" for="twoFactorAuth">Enable 2FA</label></div></div>
+              <div class="mb-3"><label for="encryptionLevel" class="form-label">Encryption Level</label><select class="form-select" id="encryptionLevel"><option value="aes-128">AES-128</option><option value="aes-256" selected>AES-256</option></select></div>
+              <div class="mb-3"><label for="sessionTimeout" class="form-label">Session Timeout (minutes)</label><input type="number" class="form-control" id="sessionTimeout" value="30"></div>
+              <div class="mb-3"><label class="form-label">Password Policy</label><div class="form-check"><input class="form-check-input" type="checkbox" id="passwordLength" checked><label class="form-check-label" for="passwordLength">Minimum 8 characters</label></div><div class="form-check"><input class="form-check-input" type="checkbox" id="passwordSpecialChar" checked><label class="form-check-label" for="passwordSpecialChar">Require special characters</label></div></div>
+              <button type="submit" class="btn btn-primary">Save Security Settings</button>
+            </form>
+          </div>
+        </div>
+    </div>
+
+

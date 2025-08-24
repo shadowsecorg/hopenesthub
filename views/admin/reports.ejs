@@ -1,0 +1,58 @@
+<div class="p-4">
+        <h2>Reports</h2>
+        <div class="card p-3 mb-4">
+          <form class="row g-2" method="get" action="/admin/reports">
+            <div class="col-md-3"><input type="text" name="pid" class="form-control" placeholder="Search by Patient ID"></div>
+            <div class="col-md-3">
+              <select class="form-select" name="range">
+                <option value="">All Time Periods</option>
+                <option value="last-week">Last Week</option>
+                <option value="last-month">Last Month</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+            <div class="col-md-3"><input type="date" name="start" class="form-control" id="startDate"></div>
+            <div class="col-md-3"><input type="date" name="end" class="form-control" id="endDate"></div>
+            <div class="col-md-3"><button class="btn btn-outline-primary">Generate Report</button></div>
+          </form>
+        </div>
+        <div class="card p-3 mb-4">
+          <h5>Summary Statistics</h5>
+          <div class="row">
+            <div class="col-md-4"><p><strong>Average Heart Rate:</strong> 72 bpm</p></div>
+            <div class="col-md-4"><p><strong>Average Sleep Quality:</strong> 78%</p></div>
+            <div class="col-md-4"><p><strong>Average Activity:</strong> 6000 steps</p></div>
+          </div>
+        </div>
+        <div class="card p-3 mb-4">
+          <h5>Aggregated Charts</h5>
+          <div class="row">
+            <div class="col-md-4"><h6>Average Heart Rate</h6><div class="chart-container"><canvas id="heartRateChart"></canvas></div></div>
+            <div class="col-md-4"><h6>Average Sleep Quality</h6><div class="chart-container"><canvas id="sleepQualityChart"></canvas></div></div>
+            <div class="col-md-4"><h6>Average Activity</h6><div class="chart-container"><canvas id="activityChart"></canvas></div></div>
+          </div>
+        </div>
+        <div class="card p-3">
+          <h5>Patient Comparison</h5>
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr><th>Patient ID</th><th>Name</th><th>Average Heart Rate</th><th>Average Sleep Quality</th><th>Average Activity</th></tr>
+              </thead>
+              <tbody>
+                <% (patientReports || []).forEach(function(r){ %>
+                  <tr>
+                    <td><%= r.patient_id %></td>
+                    <td>-</td>
+                    <td><%= r.content?.avg_hr || '-' %></td>
+                    <td><%= r.content?.avg_sleep || '-' %></td>
+                    <td><%= r.content?.avg_steps || '-' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+

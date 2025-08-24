@@ -1,0 +1,37 @@
+<div class="p-4">
+        <h2>Alerts</h2>
+        <div class="card p-3 mb-3">
+          <form class="row g-2" method="post" action="/admin/alert-settings">
+            <input type="hidden" name="user_id" value="1">
+            <div class="col-md-3"><input class="form-control" type="number" name="heart_rate_threshold" placeholder="Heart Rate Threshold (bpm)"></div>
+            <div class="col-md-3"><input class="form-control" type="number" name="sleep_threshold" placeholder="Sleep Threshold (%)"></div>
+            <div class="col-md-3"><input class="form-control" type="number" name="activity_threshold" placeholder="Activity Threshold (steps)"></div>
+            <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Save Settings</button></div>
+          </form>
+        </div>
+        <div class="card p-3">
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead><tr><th>ID</th><th>Patient</th><th>Type</th><th>Severity</th><th>Status</th><th>When</th><th>Actions</th></tr></thead>
+              <tbody>
+                <% alerts.forEach(a => { %>
+                  <tr>
+                    <td><%= a.id %></td>
+                    <td><%= a.patient_id %></td>
+                    <td><%= a.alert_type %></td>
+                    <td><%= a.severity %></td>
+                    <td><%= a.status %></td>
+                    <td><%= a.created_at?.toISOString?.() || '' %></td>
+                    <td>
+                      <form class="d-inline" method="post" action="/admin/alerts/<%= a.id %>/confirm"><button class="btn btn-sm btn-success">Confirm</button></form>
+                      <form class="d-inline" method="post" action="/admin/alerts/<%= a.id %>/reject"><button class="btn btn-sm btn-danger">Reject</button></form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+

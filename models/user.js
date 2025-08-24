@@ -27,6 +27,7 @@ module.exports = (sequelize, DataTypes) => {
       gender: { type: DataTypes.STRING(10) },
       role_id: { type: DataTypes.INTEGER },
       status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'active' },
+      is_verified: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
       created_at: { type: DataTypes.DATE },
       updated_at: { type: DataTypes.DATE }
     },

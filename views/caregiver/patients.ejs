@@ -1,0 +1,52 @@
+<h2>Patient List</h2>
+<div class="card p-3 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <input type="text" class="form-control" id="searchPatients" placeholder="Search by ID or Name">
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addPatientModal">Add Patient</button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Device Type</th>
+                    <th>Health Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="patientRows">
+                <% (patients||[]).forEach(p => { %>
+                <tr>
+                    <td>PT<%= p.id %></td>
+                    <td><%= p.User?.name || '-' %></td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="assignPatient(<%= p.id %>)">Assign to Me</button>
+                    </td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('searchPatients')?.addEventListener('input', function () {
+  const val = this.value.toLowerCase();
+  document.querySelectorAll('#patientRows tr').forEach(tr => {
+    const id = tr.cells[0].textContent.toLowerCase();
+    const name = tr.cells[1].textContent.toLowerCase();
+    tr.style.display = (id.includes(val) || name.includes(val)) ? '' : 'none';
+  });
+});
+</script>
+
+

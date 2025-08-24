@@ -1,0 +1,27 @@
+<h2>Settings</h2>
+<div class="card p-3 mb-4">
+    <form id="settingsForm">
+        <div class="mb-3">
+            <label for="notificationPreference" class="form-label">Notification Preference</label>
+            <select class="form-select" id="notificationPreference">
+                <option value="email" <%= (settings && settings.notification_preference==='email') ? 'selected' : '' %>>Email</option>
+                <option value="sms" <%= (settings && settings.notification_preference==='sms') ? 'selected' : '' %>>SMS</option>
+                <option value="both" <%= (settings && settings.notification_preference==='both') ? 'selected' : '' %>>Both</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="alertThreshold" class="form-label">Alert Threshold (Heart Rate)</label>
+            <input type="number" class="form-control" id="alertThreshold" placeholder="e.g., 100 bpm" value="<%= (settings && settings.heart_rate_threshold) || 100 %>">
+        </div>
+        <div class="mb-3">
+            <label for="language" class="form-label">Language</label>
+            <select class="form-select" id="language">
+                <option value="en" <%= (settings && settings.language==='en') ? 'selected' : '' %>>English</option>
+                <option value="fa" <%= (settings && settings.language==='fa') ? 'selected' : '' %>>فارسی</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+</div>
+
+

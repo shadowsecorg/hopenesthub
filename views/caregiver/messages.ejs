@@ -1,0 +1,40 @@
+<h2>Messages</h2>
+<div class="card p-3 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <select class="form-select" id="messageRecipient">
+                <option value="">Select Recipient</option>
+                <% (patients||[]).forEach(p => { %>
+                <option value="<%= p.user_id %>"><%= p.User?.name %> (Patient)</option>
+                <% }) %>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#sendMessageModal">Send New Message</button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Recipient</th>
+                    <th>Message</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% (messages||[]).forEach(m => { %>
+                <tr>
+                    <td><%= m.receiver ? m.receiver.name : 'All' %></td>
+                    <td><%= m.content || '' %></td>
+                    <td><%= new Date(m.created_at).toISOString().replace('T',' ').slice(0,16) %></td>
+                    <td>Sent</td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+

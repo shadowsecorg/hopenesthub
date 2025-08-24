@@ -1,0 +1,32 @@
+<h2>Recommendations</h2>
+<div class="card p-3 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addRecommendationModal">Add Recommendation</button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Patient ID</th>
+                    <th>Recommendation</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% (recommendations||[]).forEach(r => { %>
+                <tr>
+                    <td>PT<%= r.patient_id %> - <%= r.Patient?.User?.name || '' %></td>
+                    <td><%= r.content || '' %></td>
+                    <td><%= new Date(r.created_at).toISOString().slice(0,10) %></td>
+                    <td>Pending</td>
+                </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+

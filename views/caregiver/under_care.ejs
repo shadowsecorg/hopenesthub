@@ -1,0 +1,48 @@
+<h2>Patients Under Care</h2>
+<div class="card p-3 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <select class="form-select" id="underCarePatientFilter">
+                <option value="">Select Patient</option>
+                <% (patients||[]).forEach(p => { %>
+                <option value="PT<%= p.id %>"><%= p.User?.name %> (PT<%= p.id %>)</option>
+                <% }) %>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <h6>Heart Rate</h6>
+            <div class="chart-container">
+                <canvas id="caregiverHeartRateChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <h6>Sleep Quality</h6>
+            <div class="chart-container">
+                <canvas id="caregiverSleepQualityChart"></canvas>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <h6>Activity</h6>
+            <div class="chart-container">
+                <canvas id="caregiverActivityChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <hr>
+    <h6>Health Summary</h6>
+    <div class="row">
+        <div class="col-md-4">
+            <p><strong>Average Heart Rate:</strong> <span id="avgHeartRate">72 bpm</span></p>
+        </div>
+        <div class="col-md-4">
+            <p><strong>Average Sleep Quality:</strong> <span id="avgSleepQuality">78%</span></p>
+        </div>
+        <div class="col-md-4">
+            <p><strong>Average Activity:</strong> <span id="avgActivity">6000 steps</span></p>
+        </div>
+    </div>
+</div>
+
+

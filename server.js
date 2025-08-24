@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
-const routes = require('./routes');
+let routes;
+try { routes = require('./routes'); } catch (_) { routes = express.Router(); }
 const db = require('./models');
+const expressLayouts = require('express-ejs-layouts');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -16,16 +18,27 @@ const pool = new Pool({
 // Make pool available via app.locals
 app.locals.pool = pool;
 
+// View engine: EJS
+app.set('view engine', 'ejs');
+app.set('views', __dirname + '/views');
+app.use(expressLayouts);
+app.set('layout', 'layouts/admin_layout');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/public', express.static(__dirname + '/public'));
+app.use('/frontend', express.static(__dirname + '/frontend'));
 
-// Routes
+// API Routes
 app.use('/api', routes);
 
+// Pages Routes
+app.use('/', require('./web/pages'));
+
 // Health
-app.get('/', (req, res) => res.json({ message: 'HopeNest Hub API running' }));
+app.get('/health', (req, res) => res.json({ message: 'HopeNest Hub API running' }));
 
 // Start server after testing DB connection
 (async () => {
