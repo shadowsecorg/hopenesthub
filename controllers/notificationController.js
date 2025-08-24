@@ -1,13 +1,35 @@
-function sendNotification(req, res) {
-  res.json({ message: 'ok', route: 'send notification', body: req.body });
+const db = require('../models');
+
+async function sendNotification(req, res) {
+  try {
+    const { user_id, action, details } = req.body;
+    const created = await db.AuditLog.create({ user_id, action: action || 'notify', details, created_at: new Date() });
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function getNotification(req, res) {
-  res.json({ message: 'ok', route: 'get notification', id: req.params.id });
+async function getNotification(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const row = await db.AuditLog.findByPk(id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function deleteNotification(req, res) {
-  res.json({ message: 'ok', route: 'delete notification', id: req.params.id });
+async function deleteNotification(req, res) {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const deleted = await db.AuditLog.destroy({ where: { id } });
+    if (!deleted) return res.status(404).json({ error: 'Not found' });
+    res.json({ message: 'deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 module.exports = {

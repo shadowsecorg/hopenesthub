@@ -1,21 +1,18 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const db = require('../models');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
-function getPool(req) {
-  return req.app.locals.pool;
-}
-
 async function register(req, res) {
-  const { email, password, name } = req.body;
+  const { email, password, name, phone, role_id } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
-    const pool = getPool(req);
-    const hashed = await bcrypt.hash(password, 8);
-    // Example insert (table may not exist yet)
-    // await pool.query('INSERT INTO users(email,password,name) VALUES($1,$2,$3)', [email, hashed, name]);
-    res.json({ message: 'registered', email });
+    const exists = await db.User.findOne({ where: { email } });
+    if (exists) return res.status(409).json({ error: 'Email already registered' });
+    const password_hash = await bcrypt.hash(password, 8);
+    const user = await db.User.create({ email, password_hash, name, phone, role_id });
+    res.status(201).json({ id: user.id, email: user.email });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -25,14 +22,12 @@ async function login(req, res) {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
-    // In a real app, fetch user and compare password
-    // const result = await pool.query('SELECT id, email, password FROM users WHERE email=$1', [email]);
-    // if (result.rowCount === 0) return res.status(401).json({ error: 'Invalid creds' });
-    // const user = result.rows[0];
-    // const ok = await bcrypt.compare(password, user.password);
-    const fakeUser = { id: 1, email };
-    const token = jwt.sign(fakeUser, JWT_SECRET, { expiresIn: '8h' });
-    res.json({ message: 'logged_in', token });
+    const user = await db.User.findOne({ where: { email } });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '8h' });
+    res.json({ token });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -42,12 +37,26 @@ function logout(req, res) {
   res.json({ message: 'logged_out' });
 }
 
-function getProfile(req, res) {
-  res.json({ user: req.user || null });
+async function getProfile(req, res) {
+  try {
+    const user = await db.User.findByPk(req.user?.id, { attributes: { exclude: ['password_hash'] } });
+    res.json(user || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function updateProfile(req, res) {
-  res.json({ message: 'profile updated', body: req.body });
+async function updateProfile(req, res) {
+  try {
+    const { name, phone } = req.body;
+    const [count, rows] = await db.User.update({ name, phone }, { where: { id: req.user?.id }, returning: true });
+    if (count === 0) return res.status(404).json({ error: 'User not found' });
+    const user = rows[0];
+    delete user.dataValues.password_hash;
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 function uploadAvatar(req, res) {

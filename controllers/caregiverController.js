@@ -1,13 +1,40 @@
-function caregiverPatients(req, res) {
-  res.json({ message: 'ok', route: 'caregiver patients', caregiver: req.params.id });
+const db = require('../models');
+
+async function caregiverPatients(req, res) {
+  try {
+    const caregiver_id = parseInt(req.params.id, 10);
+    const links = await db.PatientCaregiver.findAll({ where: { caregiver_id }, include: [{ model: db.Patient }] });
+    res.json(links);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function assignCaregiver(req, res) {
-  res.json({ message: 'ok', route: 'assign caregiver to patient', caregiver: req.params.id, body: req.body });
+async function assignCaregiver(req, res) {
+  try {
+    const caregiver_id = parseInt(req.params.id, 10);
+    const { patient_id } = req.body;
+    if (!patient_id) return res.status(400).json({ error: 'patient_id is required' });
+    const created = await db.PatientCaregiver.create({ caregiver_id, patient_id });
+    res.status(201).json(created);
+  } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ error: 'Already assigned' });
+    }
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function removeCaregiver(req, res) {
-  res.json({ message: 'ok', route: 'remove caregiver from patient', caregiver: req.params.id, patient: req.params.pid });
+async function removeCaregiver(req, res) {
+  try {
+    const caregiver_id = parseInt(req.params.id, 10);
+    const patient_id = parseInt(req.params.pid, 10);
+    const deleted = await db.PatientCaregiver.destroy({ where: { caregiver_id, patient_id } });
+    if (!deleted) return res.status(404).json({ error: 'Assignment not found' });
+    res.json({ message: 'removed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 module.exports = {

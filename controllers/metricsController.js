@@ -1,13 +1,34 @@
-function addMetrics(req, res) {
-  res.json({ message: 'ok', route: 'add metrics', patient: req.params.id, body: req.body });
+const db = require('../models');
+
+async function addMetrics(req, res) {
+  try {
+    const patient_id = parseInt(req.params.id, 10);
+    const payload = { ...req.body, patient_id };
+    const created = await db.HealthMetric.create(payload);
+    res.status(201).json(created);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function listMetrics(req, res) {
-  res.json({ message: 'ok', route: 'list metrics', patient: req.params.id });
+async function listMetrics(req, res) {
+  try {
+    const patient_id = parseInt(req.params.id, 10);
+    const rows = await db.HealthMetric.findAll({ where: { patient_id }, order: [['recorded_at', 'DESC']], limit: 200 });
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
-function latestMetrics(req, res) {
-  res.json({ message: 'ok', route: 'latest metrics', patient: req.params.id });
+async function latestMetrics(req, res) {
+  try {
+    const patient_id = parseInt(req.params.id, 10);
+    const row = await db.HealthMetric.findOne({ where: { patient_id }, order: [['recorded_at', 'DESC']] });
+    res.json(row || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 module.exports = {
