@@ -1,112 +1,238 @@
-# HopeNest Hub - API Skeleton
-This repository contains a minimal Express.js API skeleton for the HopeNest Hub platform. It includes a PostgreSQL `pg` connection and JWT-based route protection. All endpoints requested are available as route stubs returning JSON responses.
-Files:
-# HopeNest Hub - API Skeleton
+## HopeNest Hub
 
-This repository contains a minimal Express.js API skeleton for the HopeNest Hub platform. It includes a PostgreSQL `pg` connection and JWT-based route protection. All endpoints requested are available as route stubs returning JSON responses.
+An Express.js + Sequelize (PostgreSQL) backend with EJS-powered Admin and Caregiver panels for the HopeNest platform. Includes JWT auth, REST APIs, database migrations/seeders, and demo UIs.
 
-Files:
-- `server.js` - app entrypoint, config, connects to PostgreSQL using `pg` Pool, exposes `/api` routes.
-- `routes.js` - all API routes and a small JWT middleware. Each route is currently a stub returning JSON; replace with real DB logic as needed.
-- `hopenest_schema.sql` - SQL schema file for your database (create DB objects from this file).
-Quick start:
-1. Copy `.env.example` to `.env` and fill values.
-2. npm install
-3. npm run dev (requires nodemon) or npm start
-Notes:
-- Registration and login are implemented without enforced JWT/OAuth2 for credentials creation — login issues a JWT. All other routes require a valid JWT in `Authorization: Bearer <token>`.
-- Endpoints currently return basic JSON; implement database queries and business logic as needed.
+### Contents
+- Quick start (local, Docker)
+- Environment variables
+- Database (migrations, seeders)
+- Scripts
+- API overview
+- UI routes (Admin, Caregiver)
+- File structure
+- Troubleshooting
 
-## Prerequisites
-- Node.js (16+ recommended)
-- npm (comes with Node.js)
-- PostgreSQL server (local or remote)
-- PowerShell (Windows) or another shell
-There is a SQL schema file in this repository: `hopenest_schema.sql`. Use it to create the required tables in your PostgreSQL database before running the server.
-## Setup
-1. Open a PowerShell terminal in the project folder.
-2. Copy the example env and edit it:
+---
 
-```powershell
-cp .env.example .env
-# then open .env in an editor and set DATABASE_URL and JWT_SECRET
-Edit `.env` and set these values as a minimum:
-- `DATABASE_URL` — a PostgreSQL connection string, for example:
-	postgresql://db_user:db_password@localhost:5432/hopenest
-- `JWT_SECRET` — a long random string used to sign JWT tokens.
-Example `.env` (do not commit `.env` to source control):
-```
-## Initialize the database using `hopenest_schema.sql`
-1. Create the database (if not exists). Replace `postgres`/`yourpassword` and `hopenest` as appropriate.
+## Quick start
 
-```powershell
-# create database (login as postgres superuser or a user with create DB privilege)
-psql -U postgres -c "CREATE DATABASE hopenest;"
-```
-2. Run the provided schema file to create tables and sample objects. From the project root (PowerShell):
+### Local (Node.js)
+1) Install dependencies:
 
-```powershell
-# Adjust -U, -h, -p if required. If your psql uses password auth, you may be prompted for one.
-psql -U postgres -d hopenest -f .\hopenest_schema.sql
-```
-If you use a remote or different user, specify the proper host/port/user, or use the full `DATABASE_URL` connection string with a tool like `pg_restore` or via psql connection options.
-## Install dependencies
-
-```powershell
+```bash
 npm install
 ```
-## Start the server
 
-```powershell
-# production
+2) Set environment variables (see Env section). Minimum required: `DATABASE_URL`, `JWT_SECRET`.
+
+3) Apply migrations and seed demo data:
+
+```bash
+npx sequelize-cli db:migrate
+npx sequelize-cli db:seed:all
+```
+
+4) Start the server:
+
+```bash
+npm run dev   # with nodemon
+# or
 npm start
-
-# development (requires nodemon)
-npm run dev
-```
-On startup the server tests a DB connection; if the database is not reachable the process will exit with an error. Make sure `DATABASE_URL` points to a live PostgreSQL instance and that `hopenest_schema.sql` has been applied.
-## Authentication and testing endpoints
-- `POST /api/register` — create a user (stub). Provide JSON with at least `email` and `password`.
-- `POST /api/login` — provide `{ "email": "...", "password": "..." }` and you will receive a JWT in the response `{ token: "..." }` in this skeleton.
-
-Use the returned token to call protected routes by including the HTTP header:
-
-```
-Authorization: Bearer <token>
 ```
 
-Example using PowerShell's curl (Invoke-WebRequest alias) or `curl` if available:
+Server listens on `http://localhost:${PORT||3000}`.
 
-```powershell
-curl -Method POST -ContentType 'application/json' -Body '{"email":"test@example.com","password":"secret"}' http://localhost:3000/api/login
+### Docker (PostgreSQL only)
+A compose file is provided for Postgres:
 
-# call protected route with token (replace <token>)
-curl -H "Authorization: Bearer <token>" http://localhost:3000/api/patients
+```bash
+docker compose up -d postgres
 ```
 
-All routes listed in the project specification exist in `routes.js` as stubs (returning JSON). Replace the stub responses with actual DB queries using the `pg` pool available via `req.app.locals.pool`.
-## Notes for development
-- The server uses a `pg` Pool instance created in `server.js`. You can access the pool in route handlers as `const pool = req.app.locals.pool;` and run queries: `await pool.query(...)`.
-- File uploads (avatar) are handled with `multer` and stored in the local `uploads/` directory by default.
-- Logout is stateless in this skeleton: it returns a success message. To fully invalidate tokens implement a blacklist or short token lifetimes + refresh tokens.
+Then set `DATABASE_URL=postgres://hopenest:hopenest_password@localhost:5433/hopenest` and run migrations/seeders locally as above.
 
-## Next steps (suggested)
-1. Implement real user table queries and password validation in `/api/register` and `/api/login`.
-2. Replace each stub in `routes.js` with database interactions and validation.
-3. Add migrations (e.g., with a migration tool) and seeders for test data.
-4. Add tests (Jest + Supertest) to cover endpoints.
+---
 
-If you want, I can:
-- Add a `SKIP_DB_CHECK` environment variable to allow running the server without a DB for fast local front-end work.
-- Implement a couple of endpoints fully (user registration/login and patients CRUD) using the provided schema.
+## Environment variables
+Create `.env` in the project root. Required:
 
-Tell me which of the above you'd like next and I'll implement it.
+- `DATABASE_URL` Postgres connection string, e.g. `postgres://user:pass@localhost:5432/hopenest`
+- `JWT_SECRET` Long random string for JWT signing
+- `PORT` Optional, default `3000`
 
-Quick start:
-1. Copy `.env.example` to `.env` and fill values.
-2. npm install
-3. npm run dev (requires nodemon) or npm start
+The app also creates a `pg` Pool from `DATABASE_URL` and initializes Sequelize with the same URL.
 
-Notes:
-- Registration and login are implemented without enforced JWT/OAuth2 for credentials creation — login issues a JWT. All other routes require a valid JWT in `Authorization: Bearer <token>`.
-- Endpoints currently return basic JSON; implement database queries and business logic as needed.
+---
+
+## Database
+Sequelize is configured for Postgres via `config/config.js` (uses `DATABASE_URL`).
+
+Run migrations and seeders:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+Undo if needed:
+
+```bash
+npm run db:migrate:undo
+npm run db:seed:undo
+```
+
+Seeded demo accounts (password: `ChangeMe123!`):
+- Admin: `admin@hopenest.local`
+- Doctor: `doctor@hopenest.local`
+- Patient: `patient@hopenest.local`
+- Caregiver: `caregiver@hopenest.local`
+
+Schema reference: see `DATABASE.md`. A raw SQL schema also exists in `hopenest_schema.sql` (optional).
+
+---
+
+## Scripts
+
+```json
+{
+  "start": "node server.js",
+  "dev": "nodemon server.js",
+  "db:migrate": "sequelize-cli db:migrate",
+  "db:migrate:undo": "sequelize-cli db:migrate:undo:all",
+  "db:seed": "sequelize-cli db:seed:all",
+  "db:seed:undo": "sequelize-cli db:seed:undo:all"
+}
+```
+
+---
+
+## API overview
+Base path: `/api`
+
+Auth and profile (`routes/users.js`):
+- `POST /api/register`
+- `POST /api/login`
+- `POST /api/logout` (JWT required)
+- `GET /api/profile` (JWT)
+- `PUT /api/profile` (JWT)
+- `POST /api/profile/avatar` multipart/form-data, field `avatar` (JWT)
+
+Patients (`routes/patients.js`, JWT):
+- `GET /api/patients`
+- `GET /api/patients/:id`
+- `POST /api/patients`
+- `PUT /api/patients/:id`
+- `DELETE /api/patients/:id`
+- `POST /api/patients/:id/symptoms`, `GET /api/patients/:id/symptoms`
+- `POST /api/patients/:id/emotions`, `GET /api/patients/:id/emotions`
+- `POST /api/patients/:id/metrics`, `GET /api/patients/:id/metrics`, `GET /api/patients/:id/metrics/latest`
+- `POST /api/patients/:id/reminders`, `GET /api/patients/:id/reminders`
+- `POST /api/patients/:id/medications`, `GET /api/patients/:id/medications`
+
+Caregivers (`routes/caregivers.js`, JWT):
+- `GET /api/caregivers/:id/patients`
+- `POST /api/caregivers/:id/assign`
+- `DELETE /api/caregivers/:id/patients/:pid`
+
+Doctors (`routes/doctors.js`, JWT):
+- `GET /api/doctors/:id/patients`
+- `GET /api/doctors/:id/patients/:pid/report`
+- `POST /api/doctors/:id/patients/:pid/notes`
+- `POST /api/doctors/:id/patients/:pid/prescriptions`
+- `POST /api/doctors/:id/alerts`
+- `GET /api/doctors/:id/analytics`
+
+AI (`routes/ai.js`, JWT):
+- `POST /api/ai/analyze`
+- `GET /api/ai/patients/:id/alerts`
+- `POST /api/ai/recommendations`
+- `GET /api/ai/patients/:id/predictions`
+
+Chat and messages (`routes/chat.js`, JWT):
+- `POST /api/chatbot/message`
+- `GET /api/chatbot/history`
+- `POST /api/messages/:id_receiver`
+- `GET /api/messages`
+
+Devices (`routes/devices.js`, JWT):
+- `POST /api/devices/register`
+- `GET /api/devices/:id`
+- `POST /api/devices/:id/sync`
+- `GET /api/devices/:id/metrics`
+
+Admin (`routes/admin.js`, JWT):
+- `GET /api/admin/users`
+- `GET /api/admin/reports`
+- `GET /api/admin/logs`
+- `POST /api/admin/settings`
+
+Notifications (`routes/notifications.js`, JWT):
+- `POST /api/notifications/send`
+- `GET /api/notifications/:id`
+- `DELETE /api/notifications/:id`
+
+Auth header for protected routes:
+
+```http
+Authorization: Bearer <jwt>
+```
+
+---
+
+## UI routes (server-rendered)
+Base pages live under `web/pages.js` and `views/` using EJS layouts.
+
+Admin panel:
+- `GET /admin` (dashboard)
+- `GET /admin/users`
+- `GET /admin/alerts`
+- `GET /admin/patients`
+- `POST /admin/users`, `POST /admin/users/:id/update`, `POST /admin/users/:id/delete`, `POST /admin/users/:id/reset-password`, `POST /admin/users/:id/verify`
+- `POST /admin/alerts/:id/confirm`, `POST /admin/alerts/:id/reject`
+- `POST /admin/alert-settings`
+- `GET /admin/messages`, `POST /admin/messages/send`
+- `GET /admin/reports`
+- `GET /admin/settings`
+- `GET /admin/advanced-analytics`
+- `GET /admin/wearable-management`
+
+Caregiver panel:
+- `GET /caregiver/dashboard`
+- `GET /caregiver/patient-list`
+- `GET /caregiver/under-care`
+- `GET /caregiver/api/metrics?patientId=...&days=7` (JSON)
+- `GET /caregiver/messages`, `POST /caregiver/messages/send`
+- `GET /caregiver/reports`, `GET /caregiver/reports/export`
+- `GET /caregiver/recommendations`, `POST /caregiver/recommendations`
+- `GET /caregiver/settings`, `POST /caregiver/settings`
+- `POST /caregiver/assign`, `POST /caregiver/patients` (demo create)
+- `POST /caregiver/alerts/:id/ack`, `POST /caregiver/alerts/:id/dismiss`
+
+Static assets:
+- Served from `/public` and `/frontend`.
+
+---
+
+## File structure (key paths)
+- `server.js` Express app, EJS setup, pg Pool, routes mount
+- `routes/` API route modules
+- `controllers/` Business logic handlers
+- `models/` Sequelize models and associations
+- `migrations/` + `seeders/` Database evolution and demo data
+- `web/pages.js` Server-rendered page routes
+- `views/` EJS templates and layouts
+- `public/`, `frontend/` Static assets and prototype UIs
+- `docker-compose.yml` Postgres service
+
+---
+
+## Troubleshooting
+- DB connection fails on start: confirm `DATABASE_URL`, Postgres is up, and run migrations.
+- Login returns 401/403: ensure you seeded users and are using the correct password (`ChangeMe123!`).
+- `sequelize-cli` not found: use `npx` or add as devDependency (already included).
+- Port conflicts: set `PORT` in `.env`.
+
+---
+
+## License
+MIT

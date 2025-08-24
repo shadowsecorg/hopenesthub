@@ -2,6 +2,20 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models');
 
+// Helper: decide if client expects JSON
+function wantsJson(req) {
+  const accept = req.headers && req.headers.accept ? String(req.headers.accept) : '';
+  const contentType = req.headers && req.headers['content-type'] ? String(req.headers['content-type']) : '';
+  return (accept.includes('application/json') || contentType.includes('application/json') || req.query?.format === 'json');
+}
+
+function respondOk(req, res, fallbackRedirect, payload) {
+  if (wantsJson(req)) {
+    return res.json(payload || { ok: true });
+  }
+  return res.redirect(fallbackRedirect);
+}
+
 // Admin panel
 router.get(['/admin', '/admin/index'], async (req, res) => {
   try {
@@ -10,6 +24,7 @@ router.get(['/admin', '/admin/index'], async (req, res) => {
     const recentAlerts = await db.AiAlert.count({});
     res.render('admin/index', { layout: 'layouts/admin_layout', active: 'dashboard', title: 'Admin Dashboard', totals: { totalUsers, totalPatients, recentAlerts } });
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -33,6 +48,7 @@ router.get('/admin/users', async (req, res) => {
     const users = await db.User.findAll({ where, attributes: { exclude: ['password_hash'] }, order: [['id', 'ASC']] });
     res.render('admin/users', { layout: 'layouts/admin_layout', active: 'users', title: 'User Management', users });
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -46,6 +62,7 @@ router.post('/admin/users', async (req, res) => {
     await db.User.create({ name, email, role_id: parseInt(role_id, 10) || null, status: status || 'active', password_hash });
     res.redirect('/admin/users');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -56,6 +73,7 @@ router.post('/admin/users/:id/update', async (req, res) => {
     await db.User.update({ name, email, role_id: parseInt(role_id, 10) || null, status }, { where: { id: req.params.id } });
     res.redirect('/admin/users');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -65,6 +83,7 @@ router.post('/admin/users/:id/delete', async (req, res) => {
     await db.User.destroy({ where: { id: req.params.id } });
     res.redirect('/admin/users');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -78,6 +97,7 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
     await db.User.update({ password_hash }, { where: { id: req.params.id } });
     res.redirect('/admin/users');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -87,6 +107,7 @@ router.post('/admin/users/:id/verify', async (req, res) => {
     await db.User.update({ is_verified: true }, { where: { id: req.params.id } });
     res.redirect('/admin/users');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -96,6 +117,7 @@ router.get('/admin/alerts', async (req, res) => {
     const alerts = await db.AiAlert.findAll({ include: [{ model: db.Patient }], order: [['created_at', 'DESC']], limit: 200 });
     res.render('admin/alerts', { layout: 'layouts/admin_layout', active: 'alerts', title: 'Alerts', alerts });
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -117,6 +139,7 @@ router.get('/admin/patients', async (req, res) => {
     }
     res.render('admin/patients', { layout: 'layouts/admin_layout', active: 'patients', title: 'Patient Status', patients });
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -177,8 +200,16 @@ router.post('/admin/alert-settings', async (req, res) => {
 // Stubs for other admin pages to render static shell, can be expanded
 router.get('/admin/messages', async (req, res) => {
   try {
-    const messages = await db.Message.findAll({ order: [['created_at', 'DESC']], limit: 100 });
-    res.render('admin/messages', { layout: 'layouts/admin_layout', active: 'messages', title: 'Messages', messages });
+    const messages = await db.Message.findAll({
+      include: [
+        { model: db.User, as: 'receiver', attributes: ['name'] },
+        { model: db.User, as: 'sender', attributes: ['name'] }
+      ],
+      order: [['created_at', 'DESC']],
+      limit: 100
+    });
+    const users = await db.User.findAll({ attributes: ['id', 'name', 'role_id'], order: [['name', 'ASC']] });
+    res.render('admin/messages', { layout: 'layouts/admin_layout', active: 'messages', title: 'Messages', messages, users });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -186,10 +217,11 @@ router.get('/admin/messages', async (req, res) => {
 router.post('/admin/messages/send', async (req, res) => {
   try {
     const { recipientType, recipient, groupRecipient, content } = req.body;
-    // For simplicity: if individual, set receiver_id; else leave null and store as group
     const sender_id = req.user?.id || 1; // demo
-    const receiver_id = recipientType === 'individual' ? recipient : null;
-    await db.Message.create({ sender_id, receiver_id, content, message_type: 'text', created_at: new Date() });
+    const isIndividual = recipientType === 'individual';
+    const receiver_id = isIndividual ? parseInt(recipient, 10) || null : null;
+    const message_type = isIndividual ? 'text' : `group:${groupRecipient || 'all'}`;
+    await db.Message.create({ sender_id, receiver_id, content, message_type, created_at: new Date() });
     res.redirect('/admin/messages');
   } catch (err) {
     res.status(500).send(err.message);
@@ -256,6 +288,24 @@ router.get('/caregiver/under-care', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// API to get metrics for a patient for charts
+router.get('/caregiver/api/metrics', async (req, res) => {
+  try {
+    const { patientId, days } = req.query;
+    if (!patientId) return res.status(400).json({ error: 'patientId required' });
+    const since = new Date();
+    since.setDate(since.getDate() - (parseInt(days, 10) || 7));
+    const metrics = await db.HealthMetric.findAll({
+      where: { patient_id: patientId, recorded_at: { [db.Sequelize.Op.gte]: since } },
+      order: [['recorded_at', 'ASC']],
+      limit: 500
+    });
+    res.json(metrics);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/caregiver/messages', async (req, res) => {
   try {
     const { patients, messages } = await loadCaregiverData();
@@ -301,11 +351,9 @@ router.post('/caregiver/assign', async (req, res) => {
   try {
     const { caregiver_id, patient_id } = req.body;
     await db.PatientCaregiver.findOrCreate({ where: { caregiver_id, patient_id }, defaults: { caregiver_id, patient_id } });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/patient-list');
+    return respondOk(req, res, '/caregiver/patient-list');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -322,11 +370,9 @@ router.post('/caregiver/patients', async (req, res) => {
     const roleId = 3; // patient role
     const user = await db.User.create({ name, email, role_id: roleId, status: 'active', password_hash });
     await db.Patient.create({ user_id: user.id });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/patient-list');
+    return respondOk(req, res, '/caregiver/patient-list');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -338,11 +384,9 @@ router.post('/caregiver/messages/send', async (req, res) => {
     const sender_id = req.user?.id || 1;
     const receiver_id = recipient || null;
     await db.Message.create({ sender_id, receiver_id, content, message_type: 'text', created_at: new Date() });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/messages');
+    return respondOk(req, res, '/caregiver/messages');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -351,11 +395,9 @@ router.post('/caregiver/messages/send', async (req, res) => {
 router.post('/caregiver/alerts/:id/ack', async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'acknowledged' }, { where: { id: req.params.id } });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/dashboard');
+    return respondOk(req, res, '/caregiver/dashboard');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -363,11 +405,9 @@ router.post('/caregiver/alerts/:id/ack', async (req, res) => {
 router.post('/caregiver/alerts/:id/dismiss', async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'dismissed' }, { where: { id: req.params.id } });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/dashboard');
+    return respondOk(req, res, '/caregiver/dashboard');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -385,6 +425,7 @@ router.get('/caregiver/reports/export', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="reports.csv"');
     res.send(csv);
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -401,11 +442,9 @@ router.post('/caregiver/settings', async (req, res) => {
     if (!created) {
       await row.update({ heart_rate_threshold: alertThreshold || null, language: language || row.language, notification_preference: notificationPreference || row.notification_preference });
     }
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/settings');
+    return respondOk(req, res, '/caregiver/settings');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });
@@ -415,11 +454,9 @@ router.post('/caregiver/recommendations', async (req, res) => {
   try {
     const { patientId, content } = req.body;
     await db.DoctorNote.create({ patient_id: patientId, doctor_id: null, note_type: 'recommendation', content, created_at: new Date() });
-    if (req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      return res.json({ ok: true });
-    }
-    res.redirect('/caregiver/recommendations');
+    return respondOk(req, res, '/caregiver/recommendations');
   } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
 });

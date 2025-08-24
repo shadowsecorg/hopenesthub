@@ -5,18 +5,19 @@
           <form id="sendMessageForm" method="post" action="/admin/messages/send">
             <div class="row">
               <div class="col-md-4">
-                <select class="form-select mb-3" id="recipientType">
+                <select class="form-select mb-3" id="recipientType" name="recipientType">
                   <option value="individual">Individual</option>
                   <option value="group">Group</option>
                 </select>
               </div>
               <div class="col-md-4">
-                <select class="form-select mb-3" id="recipient">
+                <select class="form-select mb-3" id="recipient" name="recipient">
                   <option value="">Select Recipient</option>
-                  <option value="PT12345">John Doe (PT12345)</option>
-                  <option value="PT67890">Jane Smith (PT67890)</option>
+                  <% (users || []).forEach(u => { %>
+                    <option value="<%= u.id %>"><%= u.name %> (ID <%= u.id %>)</option>
+                  <% }) %>
                 </select>
-                <select class="form-select mb-3" id="groupRecipient">
+                <select class="form-select mb-3" id="groupRecipient" name="groupRecipient">
                   <option value="">Select Group</option>
                   <option value="patients">All Patients</option>
                   <option value="caregivers">All Caregivers</option>
@@ -51,7 +52,7 @@
               <tbody>
                 <% (messages || []).forEach(m => { %>
                   <tr>
-                    <td><%= m.receiver_id || 'Group' %></td>
+                    <td><%= m.receiver ? m.receiver.name : (m.message_type?.startsWith('group:') ? m.message_type.replace('group:','Group: ') : 'Group') %></td>
                     <td><%= m.content %></td>
                     <td><%= m.created_at?.toISOString?.() || '' %></td>
                     <td><%= (m.receiver_id ? 'Individual' : 'Group') %></td>
