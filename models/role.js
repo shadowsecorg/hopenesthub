@@ -13,7 +13,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
       name: { type: DataTypes.STRING(50), allowNull: false, unique: true },
-      description: { type: DataTypes.TEXT }
+      description: { type: DataTypes.TEXT },
+      permissions: { type: DataTypes.JSONB }
     },
     {
       sequelize,

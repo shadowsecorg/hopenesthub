@@ -24,17 +24,62 @@
             </div>
             <div class="table-responsive">
               <table class="table table-striped">
-                <thead><tr><th>Role</th><th>Permissions</th><th>Actions</th></tr></thead>
+                <thead><tr><th>ID</th><th>Role</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr><td>Admin</td><td>All Access</td><td><button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editRoleModal">Edit</button> <button class="btn btn-sm btn-danger">Delete</button></td></tr>
-                  <tr><td>Caregiver</td><td>View Patients, Send Messages</td><td><button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editRoleModal">Edit</button> <button class="btn btn-sm btn-danger">Delete</button></td></tr>
+                  <% (roles||[]).forEach(function(r){ %>
+                    <tr>
+                      <td><%= r.id %></td>
+                      <td><%= r.name %></td>
+                      <td>
+                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editRoleModal" data-id="<%= r.id %>" data-name="<%= r.name %>" data-permissions='<%- JSON.stringify(r.permissions || {}) %>'>Edit</button>
+                        <form class="d-inline" method="post" action="/admin/settings/roles/<%= r.id %>/delete"><button class="btn btn-sm btn-danger">Delete</button></form>
+                      </td>
+                    </tr>
+                  <% }) %>
                 </tbody>
               </table>
             </div>
           </div>
+
+          <!-- Add Role Modal -->
+          <div class="modal fade" id="addRoleModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <form id="addRoleForm" method="post" action="/admin/settings/roles">
+                  <div class="modal-header"><h5 class="modal-title">Add Role</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                  <div class="modal-body">
+                    <input type="text" class="form-control" id="roleName" name="name" placeholder="Role name" required>
+                  </div>
+                  <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Role Modal -->
+          <div class="modal fade" id="editRoleModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <form id="editRoleForm" method="post">
+                  <div class="modal-header"><h5 class="modal-title">Edit Role</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                  <div class="modal-body">
+                    <input type="text" class="form-control" id="editRoleName" name="name" placeholder="Role name" required>
+                    <hr>
+                    <label class="form-label">Permissions</label>
+                    <div class="form-check"><input class="form-check-input perm" type="checkbox" data-key="viewPatients" id="permViewPatients" checked><label class="form-check-label" for="permViewPatients">View Patients</label></div>
+                    <div class="form-check"><input class="form-check-input perm" type="checkbox" data-key="manageUsers" id="permManageUsers"><label class="form-check-label" for="permManageUsers">Manage Users</label></div>
+                    <div class="form-check"><input class="form-check-input perm" type="checkbox" data-key="sendMessages" id="permSendMessages"><label class="form-check-label" for="permSendMessages">Send Messages</label></div>
+                    <div class="form-check"><input class="form-check-input perm" type="checkbox" data-key="viewReports" id="permViewReports"><label class="form-check-label" for="permViewReports">View Reports</label></div>
+                    <input type="hidden" name="permissions" id="editRolePermissions">
+                  </div>
+                  <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div>
+                </form>
+              </div>
+            </div>
+          </div>
           <div class="tab-pane fade" id="chatbot" role="tabpanel">
             <h5>Chatbot Settings</h5>
-            <form id="chatbotSettingsForm">
+            <form id="chatbotSettingsForm" method="post" action="/admin/settings/chatbot">
               <div class="mb-3"><label class="form-label">Chatbot Status</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="chatbotStatus" checked><label class="form-check-label" for="chatbotStatus">Enable Chatbot</label></div></div>
               <div class="mb-3"><label for="chatbotResponses" class="form-label">Default Responses</label><textarea class="form-control" id="chatbotResponses" rows="5">{"greeting": "Hello! How can I assist you today?", "faq": "Please ask about medications or appointments."}</textarea></div>
               <div class="mb-3"><label for="chatbotPlatform" class="form-label">Chatbot Platform</label><select class="form-select" id="chatbotPlatform"><option value="dialogflow" selected>Dialogflow</option><option value="botpress">Botpress</option></select></div>
@@ -43,7 +88,7 @@
           </div>
           <div class="tab-pane fade" id="wearable" role="tabpanel">
             <h5>Wearable Integration</h5>
-            <form id="wearableSettingsForm">
+            <form id="wearableSettingsForm" method="post" action="/admin/settings/wearables">
               <div class="mb-3"><label class="form-label">Google Fit Integration</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="googleFitStatus" checked><label class="form-check-label" for="googleFitStatus">Enable Google Fit</label></div></div>
               <div class="mb-3"><label for="googleFitApiKey" class="form-label">Google Fit API Key</label><input type="text" class="form-control" id="googleFitApiKey"></div>
               <div class="mb-3"><label class="form-label">Apple HealthKit Integration</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="healthKitStatus" checked><label class="form-check-label" for="healthKitStatus">Enable HealthKit</label></div></div>
@@ -54,7 +99,7 @@
           </div>
           <div class="tab-pane fade" id="security" role="tabpanel">
             <h5>Security Settings</h5>
-            <form id="securitySettingsForm">
+            <form id="securitySettingsForm" method="post" action="/admin/settings/security">
               <div class="mb-3"><label class="form-label">Two-Factor Authentication</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="twoFactorAuth" checked><label class="form-check-label" for="twoFactorAuth">Enable 2FA</label></div></div>
               <div class="mb-3"><label for="encryptionLevel" class="form-label">Encryption Level</label><select class="form-select" id="encryptionLevel"><option value="aes-128">AES-128</option><option value="aes-256" selected>AES-256</option></select></div>
               <div class="mb-3"><label for="sessionTimeout" class="form-label">Session Timeout (minutes)</label><input type="number" class="form-control" id="sessionTimeout" value="30"></div>
@@ -66,3 +111,26 @@
     </div>
 
 
+<script>
+  document.getElementById('editRoleModal')?.addEventListener('show.bs.modal', function (event) {
+    var button = event.relatedTarget;
+    var id = button.getAttribute('data-id');
+    var name = button.getAttribute('data-name');
+    document.getElementById('editRoleName').value = name || '';
+    document.getElementById('editRoleForm').setAttribute('action', '/admin/settings/roles/' + id + '/update');
+    // Prefill permissions from data attribute
+    var perms = {};
+    try { perms = JSON.parse(button.getAttribute('data-permissions')||'{}'); } catch(_) { perms = {}; }
+    document.querySelectorAll('.perm').forEach(cb => {
+      var key = cb.getAttribute('data-key');
+      cb.checked = !!perms[key];
+    });
+  });
+
+  document.getElementById('editRoleForm')?.addEventListener('submit', function(e){
+    var perms = {};
+    document.querySelectorAll('.perm').forEach(cb => perms[cb.getAttribute('data-key')] = cb.checked);
+    var hidden = document.getElementById('editRolePermissions');
+    if (hidden) hidden.value = JSON.stringify(perms);
+  });
+</script>

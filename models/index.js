@@ -39,6 +39,8 @@ db.PatientReport = require('./patient_report')(sequelize, DataTypes);
 db.AuditLog = require('./audit_log')(sequelize, DataTypes);
 db.ApiToken = require('./api_token')(sequelize, DataTypes);
 db.AlertSetting = require('./alert_setting')(sequelize, DataTypes);
+db.SystemSetting = require('./system_setting')(sequelize, DataTypes);
+db.WearableDevice = require('./wearable_device')(sequelize, DataTypes);
 
 // Associations
 Object.values(db)

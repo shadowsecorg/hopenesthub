@@ -6,7 +6,7 @@
                 <i class="bi bi-person-fill fs-3 me-3"></i>
                 <div>
                     <h5 class="mb-0">Total Patients</h5>
-                    <p class="mb-0 fs-4"><%= (patients||[]).length %></p>
+                    <p class="mb-0 fs-4"><%= (cards&&cards.totalPatients)||((patients||[]).length) %></p>
                 </div>
             </div>
         </div>
@@ -17,7 +17,7 @@
                 <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
                 <div>
                     <h5 class="mb-0">Critical Alerts</h5>
-                    <p class="mb-0 fs-4"><%= (alerts||[]).filter(a=>a.severity==='critical').length %></p>
+                    <p class="mb-0 fs-4"><%= (cards&&cards.criticalAlerts)||0 %></p>
                 </div>
             </div>
         </div>
@@ -28,7 +28,7 @@
                 <i class="bi bi-heart-pulse-fill fs-3 me-3"></i>
                 <div>
                     <h5 class="mb-0">At-Risk Patients</h5>
-                    <p class="mb-0 fs-4">-</p>
+                    <p class="mb-0 fs-4"><%= (cards&&cards.atRiskPatients)||0 %></p>
                 </div>
             </div>
         </div>
@@ -39,7 +39,7 @@
                 <i class="bi bi-chat-fill fs-3 me-3"></i>
                 <div>
                     <h5 class="mb-0">Unread Messages</h5>
-                    <p class="mb-0 fs-4">-</p>
+                    <p class="mb-0 fs-4"><%= (cards&&cards.unreadMessages)||0 %></p>
                 </div>
             </div>
         </div>

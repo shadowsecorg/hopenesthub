@@ -9,12 +9,26 @@
           <div class="tab-content mt-3" id="wearableTabContent">
             <div class="tab-pane fade show active" id="devices" role="tabpanel">
               <h5>Connected Devices</h5>
-              <div class="row mb-3"><div class="col-md-3"><input type="text" class="form-control" id="searchDevices" placeholder="Search by User ID or Device"></div><div class="col-md-3"><select class="form-select" id="deviceFilter"><option value="">All Devices</option><option value="google-fit">Google Fit</option><option value="healthkit">Apple HealthKit</option></select></div><div class="col-md-3"><button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addDeviceModal">Connect New Device</button></div></div>
-              <div class="table-responsive"><table class="table table-striped"><thead><tr><th>User ID</th><th>Name</th><th>Device Type</th><th>Device ID</th><th>Status</th><th>Last Sync</th><th>Actions</th></tr></thead><tbody><tr><td>PT12345</td><td>John Doe</td><td>Google Fit</td><td>GF123456</td><td>Connected</td><td>2025-08-13 10:00</td><td><button class="btn btn-sm btn-danger">Disconnect</button></td></tr><tr><td>PT54321</td><td>Alice Brown</td><td>Apple HealthKit</td><td>HK789012</td><td>Disconnected</td><td>2025-08-12 09:30</td><td><button class="btn btn-sm btn-primary">Reconnect</button></td></tr></tbody></table></div>
+              <form class="row mb-3" method="get" action="/admin/wearable-management"><div class="col-md-3"><input type="text" class="form-control" name="q" value="<%= q || '' %>" placeholder="Search by User ID or Device"></div><div class="col-md-3"><select class="form-select" name="type"><option value="">All Devices</option><option value="google-fit" <%= type==='google-fit'?'selected':'' %>>Google Fit</option><option value="healthkit" <%= type==='healthkit'?'selected':'' %>>Apple HealthKit</option></select></div><div class="col-md-3"><button class="btn btn-outline-primary w-100" type="submit">Filter</button></div><div class="col-md-3"><button class="btn btn-primary w-100" type="button" data-bs-toggle="modal" data-bs-target="#addDeviceModal">Connect New Device</button></div></form>
+              <div class="table-responsive"><table class="table table-striped"><thead><tr><th>User ID</th><th>Device Type</th><th>Device ID</th><th>Status</th><th>Last Sync</th><th>Actions</th></tr></thead><tbody>
+                <% (devices || []).forEach(d => { %>
+                  <tr>
+                    <td><%= d.user_id %></td>
+                    <td><%= d.device_type %></td>
+                    <td><%= d.device_id %></td>
+                    <td><%= d.status %></td>
+                    <td><%= d.last_sync ? new Date(d.last_sync).toISOString().replace('T',' ').slice(0,16) : '-' %></td>
+                    <td>
+                      <form class="d-inline" method="post" action="/admin/wearables/<%= d.device_id %>/disconnect"><button class="btn btn-sm btn-danger" <%= d.status==='disconnected'?'disabled':'' %>>Disconnect</button></form>
+                      <form class="d-inline" method="post" action="/admin/wearables/<%= d.device_id %>/reconnect"><button class="btn btn-sm btn-primary">Reconnect</button></form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody></table></div>
             </div>
             <div class="tab-pane fade" id="config" role="tabpanel">
               <h5>Device Configuration</h5>
-              <form id="wearableConfigForm">
+              <form id="wearableConfigForm" method="post" action="/admin/settings/wearables">
                 <div class="row mb-3">
                   <div class="col-md-6"><h6>Google Fit Configuration</h6><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="googleFitStatus" checked><label class="form-check-label" for="googleFitStatus">Enable Google Fit</label></div><div class="mb-3"><label for="googleFitApiKey" class="form-label">Google Fit API Key</label><input type="text" class="form-control" id="googleFitApiKey"></div><div class="mb-3"><label for="googleFitDataTypes" class="form-label">Data Types to Sync</label><div class="form-check"><input class="form-check-input" type="checkbox" id="googleFitHeartRate" checked><label class="form-check-label" for="googleFitHeartRate">Heart Rate</label></div><div class="form-check"><input class="form-check-input" type="checkbox" id="googleFitSleep" checked><label class="form-check-label" for="googleFitSleep">Sleep Quality</label></div><div class="form-check"><input class="form-check-input" type="checkbox" id="googleFitActivity" checked><label class="form-check-label" for="googleFitActivity">Activity</label></div></div></div>
                   <div class="col-md-6"><h6>Apple HealthKit Configuration</h6><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="healthKitStatus" checked><label class="form-check-label" for="healthKitStatus">Enable HealthKit</label></div><div class="mb-3"><label for="healthKitApiKey" class="form-label">HealthKit API Key</label><input type="text" class="form-control" id="healthKitApiKey"></div><div class="mb-3"><label for="healthKitDataTypes" class="form-label">Data Types to Sync</label><div class="form-check"><input class="form-check-input" type="checkbox" id="healthKitHeartRate" checked><label class="form-check-label" for="healthKitHeartRate">Heart Rate</label></div><div class="form-check"><input class="form-check-input" type="checkbox" id="healthKitSleep" checked><label class="form-check-label" for="healthKitSleep">Sleep Quality</label></div><div class="form-check"><input class="form-check-input" type="checkbox" id="healthKitActivity" checked><label class="form-check-label" for="healthKitActivity">Activity</label></div></div></div>
@@ -25,7 +39,7 @@
             </div>
             <div class="tab-pane fade" id="status" role="tabpanel">
               <h5>Status & Analytics</h5>
-              <div class="row mb-3"><div class="col-md-3"><select class="form-select" id="statusFilter"><option value="">All Devices</option><option value="google-fit">Google Fit</option><option value="healthkit">Apple HealthKit</option></select></div><div class="col-md-3"><button class="btn btn-success w-100">Export as PDF</button></div><div class="col-md-3"><button class="btn btn-success w-100">Export as Excel</button></div></div>
+              <div class="row mb-3"><div class="col-md-3"><select class="form-select" id="statusFilter"><option value="">All Devices</option><option value="google-fit">Google Fit</option><option value="healthkit">Apple HealthKit</option></select></div><div class="col-md-3"><a class="btn btn-success w-100" href="/admin/wearables/export<%= (q||type)?('?'+new URLSearchParams({q:q||'',type:type||''}).toString()):'' %>">Export CSV</a></div></div>
               <div class="row"><div class="col-md-6"><h6>Sync Success Rate</h6><div class="chart-container"><canvas id="syncSuccessChart"></canvas></div></div><div class="col-md-6"><h6>Device Usage Distribution</h6><div class="chart-container"><canvas id="deviceUsageChart"></canvas></div></div></div>
               <hr>
               <h6>Device Status Summary</h6>
@@ -35,5 +49,21 @@
           </div>
         </div>
       </div>
-
+      
+      <!-- Connect New Device Modal -->
+      <div class="modal fade" id="addDeviceModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <form method="post" action="/admin/wearables/connect">
+              <div class="modal-header"><h5 class="modal-title">Connect New Device</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+              <div class="modal-body">
+                <div class="mb-3"><label class="form-label">User ID</label><input class="form-control" name="userId" required></div>
+                <div class="mb-3"><label class="form-label">Device Type</label><select class="form-select" name="deviceType"><option value="google-fit">Google Fit</option><option value="healthkit">Apple HealthKit</option></select></div>
+                <div class="mb-3"><label class="form-label">Device ID</label><input class="form-control" name="deviceId" required></div>
+              </div>
+              <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Connect</button></div>
+            </form>
+          </div>
+        </div>
+      </div>
 

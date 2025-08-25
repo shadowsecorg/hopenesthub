@@ -19,17 +19,17 @@
         <div class="card p-3 mb-4">
           <h5>Summary Statistics</h5>
           <div class="row">
-            <div class="col-md-4"><p><strong>Average Heart Rate:</strong> 72 bpm</p></div>
-            <div class="col-md-4"><p><strong>Average Sleep Quality:</strong> 78%</p></div>
-            <div class="col-md-4"><p><strong>Average Activity:</strong> 6000 steps</p></div>
+            <div class="col-md-4"><p><strong>Average Heart Rate:</strong> <%= (summary&&summary.avgHeart)||0 %> bpm</p></div>
+            <div class="col-md-4"><p><strong>Average Sleep Quality:</strong> <%= (summary&&summary.avgSleep)||0 %>%</p></div>
+            <div class="col-md-4"><p><strong>Average Activity:</strong> <%= (summary&&summary.avgSteps)||0 %> steps</p></div>
           </div>
         </div>
         <div class="card p-3 mb-4">
           <h5>Aggregated Charts</h5>
           <div class="row">
-            <div class="col-md-4"><h6>Average Heart Rate</h6><div class="chart-container"><canvas id="heartRateChart"></canvas></div></div>
-            <div class="col-md-4"><h6>Average Sleep Quality</h6><div class="chart-container"><canvas id="sleepQualityChart"></canvas></div></div>
-            <div class="col-md-4"><h6>Average Activity</h6><div class="chart-container"><canvas id="activityChart"></canvas></div></div>
+            <div class="col-md-4"><h6>Average Heart Rate</h6><div class="chart-container"><canvas id="heartRateChart" data-labels='<%= JSON.stringify((adminReportCharts&&adminReportCharts.labels)||[]) %>' data-series='<%= JSON.stringify((adminReportCharts&&adminReportCharts.heartRate)||[]) %>'></canvas></div></div>
+            <div class="col-md-4"><h6>Average Sleep Quality</h6><div class="chart-container"><canvas id="sleepQualityChart" data-labels='<%= JSON.stringify((adminReportCharts&&adminReportCharts.labels)||[]) %>' data-series='<%= JSON.stringify((adminReportCharts&&adminReportCharts.sleepQuality)||[]) %>'></canvas></div></div>
+            <div class="col-md-4"><h6>Average Activity</h6><div class="chart-container"><canvas id="activityChart" data-labels='<%= JSON.stringify((adminReportCharts&&adminReportCharts.labels)||[]) %>' data-series='<%= JSON.stringify((adminReportCharts&&adminReportCharts.steps)||[]) %>'></canvas></div></div>
           </div>
         </div>
         <div class="card p-3">

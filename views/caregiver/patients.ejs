@@ -25,9 +25,9 @@
                 <tr>
                     <td>PT<%= p.id %></td>
                     <td><%= p.User?.name || '-' %></td>
+                    <td><%= p.User?.date_of_birth ? Math.max(0, Math.floor((Date.now() - new Date(p.User.date_of_birth).getTime()) / (365.25*24*60*60*1000))) : '-' %></td>
                     <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
+                    <td><%= p.health_status || '-' %></td>
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="assignPatient(<%= p.id %>)">Assign to Me</button>
                     </td>
