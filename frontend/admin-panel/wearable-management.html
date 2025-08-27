@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wearable Management</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <h4 class="text-white">HopeNest Hub</h4>
+                <a href="index.html">Dashboard</a>
+                <a href="users.html">User Management</a>
+                <a href="patients.html">Patient Status</a>
+                <a href="reports.html">Reports</a>
+                <a href="alerts.html">Alerts</a>
+                <a href="messages.html">Messages</a>
+                <a href="settings.html">Settings</a>
+                <hr class="text-white">
+                <h6 class="text-white">Advanced Features</h6>
+                <a href="#" onclick="alert('This feature will be available in the next project phase.'); return false;">
+    Doctor Panel
+</a>
+                <a href="advanced-analytics.html">Advanced Analytics</a>
+                <a href="wearable-management.html" class="active">Wearable Management</a>
+            </div>
+            <!-- Main Content -->
+            <div class="col-md-10 p-4">
+                <h2>Wearable Management</h2>
+                <div class="card p-3 mb-4">
+                    <ul class="nav nav-tabs" id="wearableTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button" role="tab">Connected Devices</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab">Configuration</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button" role="tab">Status & Analytics</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content mt-3" id="wearableTabContent">
+                        <!-- Connected Devices Tab -->
+                        <div class="tab-pane fade show active" id="devices" role="tabpanel">
+                            <h5>Connected Devices</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <input type="text" class="form-control" id="searchDevices" placeholder="Search by User ID or Device">
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="deviceFilter">
+                                        <option value="">All Devices</option>
+                                        <option value="google-fit">Google Fit</option>
+                                        <option value="healthkit">Apple HealthKit</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addDeviceModal">Connect New Device</button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>User ID</th>
+                                            <th>Name</th>
+                                            <th>Device Type</th>
+                                            <th>Device ID</th>
+                                            <th>Status</th>
+                                            <th>Last Sync</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>PT12345</td>
+                                            <td>John Doe</td>
+                                            <td>Google Fit</td>
+                                            <td>GF123456</td>
+                                            <td>Connected</td>
+                                            <td>2025-08-13 10:00</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-danger" onclick="disconnectDevice('PT12345', 'GF123456')">Disconnect</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>PT54321</td>
+                                            <td>Alice Brown</td>
+                                            <td>Apple HealthKit</td>
+                                            <td>HK789012</td>
+                                            <td>Disconnected</td>
+                                            <td>2025-08-12 09:30</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" onclick="reconnectDevice('PT54321', 'HK789012')">Reconnect</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <!-- Configuration Tab -->
+                        <div class="tab-pane fade" id="config" role="tabpanel">
+                            <h5>Device Configuration</h5>
+                            <form id="wearableConfigForm">
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <h6>Google Fit Configuration</h6>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="googleFitStatus" checked>
+                                            <label class="form-check-label" for="googleFitStatus">Enable Google Fit</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="googleFitApiKey" class="form-label">Google Fit API Key</label>
+                                            <input type="text" class="form-control" id="googleFitApiKey" placeholder="Enter Google Fit API Key">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="googleFitDataTypes" class="form-label">Data Types to Sync</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="googleFitHeartRate" checked>
+                                                <label class="form-check-label" for="googleFitHeartRate">Heart Rate</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="googleFitSleep" checked>
+                                                <label class="form-check-label" for="googleFitSleep">Sleep Quality</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="googleFitActivity" checked>
+                                                <label class="form-check-label" for="googleFitActivity">Activity</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Apple HealthKit Configuration</h6>
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="healthKitStatus" checked>
+                                            <label class="form-check-label" for="healthKitStatus">Enable HealthKit</label>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="healthKitApiKey" class="form-label">HealthKit API Key</label>
+                                            <input type="text" class="form-control" id="healthKitApiKey" placeholder="Enter HealthKit API Key">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="healthKitDataTypes" class="form-label">Data Types to Sync</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="healthKitHeartRate" checked>
+                                                <label class="form-check-label" for="healthKitHeartRate">Heart Rate</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="healthKitSleep" checked>
+                                                <label class="form-check-label" for="healthKitSleep">Sleep Quality</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="healthKitActivity" checked>
+                                                <label class="form-check-label" for="healthKitActivity">Activity</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="syncFrequency" class="form-label">Data Sync Frequency</label>
+                                    <select class="form-select" id="syncFrequency">
+                                        <option value="hourly">Hourly</option>
+                                        <option value="daily">Daily</option>
+                                        <option value="realtime" selected>Real-Time</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Configuration</button>
+                            </form>
+                        </div>
+                        <!-- Status & Analytics Tab -->
+                        <div class="tab-pane fade" id="status" role="tabpanel">
+                            <h5>Status & Analytics</h5>
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <select class="form-select" id="statusFilter">
+                                        <option value="">All Devices</option>
+                                        <option value="google-fit">Google Fit</option>
+                                        <option value="healthkit">Apple HealthKit</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-success w-100" onclick="exportToPDF('status')">Export as PDF</button>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-success w-100" onclick="exportToExcel('status')">Export as Excel</button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Sync Success Rate</h6>
+                                    <div class="chart-container">
+                                        <canvas id="syncSuccessChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>Device Usage Distribution</h6>
+                                    <div class="chart-container">
+                                        <canvas id="deviceUsageChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr>
+                            <h6>Device Status Summary</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <p><strong>Total Connected Devices:</strong> 200</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Data Points Collected:</strong> 18,000</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Sync Success Rate:</strong> 95%</p>
+                                </div>
+                                <div class="col-md-3">
+                                    <p><strong>Sync Errors:</strong> 10</p>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Device Type</th>
+                                            <th>Connected Users</th>
+                                            <th>Data Points</th>
+                                            <th>Sync Success (%)</th>
+                                            <th>Sync Errors</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Google Fit</td>
+                                            <td>120</td>
+                                            <td>10,000</td>
+                                            <td>95%</td>
+                                            <td>5</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Apple HealthKit</td>
+                                            <td>80</td>
+                                            <td>8,000</td>
+                                            <td>93%</td>
+                                            <td>5</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div class="modal fade" id="addDeviceModal" tabindex="-1" aria-labelledby="addDeviceModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDeviceModalLabel">Connect New Device</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addDeviceForm">
+                        <div class="mb-3">
+                            <label for="userId" class="form-label">User ID</label>
+                            <input type="text" class="form-control" id="userId" placeholder="Enter User ID" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="deviceType" class="form-label">Device Type</label>
+                            <select class="form-select" id="deviceType" required>
+                                <option value="google-fit">Google Fit</option>
+                                <option value="healthkit">Apple HealthKit</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="deviceId" class="form-label">Device ID</label>
+                            <input type="text" class="form-control" id="deviceId" placeholder="Enter Device ID" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Connect Device</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom JS -->
+    <script src="charts.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
