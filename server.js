@@ -6,6 +6,8 @@ let routes;
 try { routes = require('./routes'); } catch (_) { routes = express.Router(); }
 const db = require('./models');
 const expressLayouts = require('express-ejs-layouts');
+const swaggerUi = require('swagger-ui-express');
+const openapi = require('./config/openapi.json');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -33,6 +35,12 @@ app.use('/frontend', express.static(__dirname + '/frontend'));
 
 // API Routes
 app.use('/api', routes);
+
+// Swagger UI (OpenAPI docs)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi, {
+  explorer: true,
+  swaggerOptions: { persistAuthorization: true }
+}));
 
 // Pages Routes
 app.use('/', require('./web/pages'));

@@ -1,0 +1,695 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HopeNest Hub API",
+    "version": "0.1.0",
+    "description": "REST API documentation for HopeNest Hub. The base path for all endpoints is /api. Most endpoints require Bearer JWT authentication."
+  },
+  "servers": [
+    { "url": "/api", "description": "Primary API server (relative to host)" }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Authentication and user profile" },
+    { "name": "Patients", "description": "Patient CRUD and related resources" },
+    { "name": "Symptoms", "description": "Patient symptoms" },
+    { "name": "Emotions", "description": "Patient emotions" },
+    { "name": "Metrics", "description": "Patient health metrics" },
+    { "name": "Reminders", "description": "Patient reminders" },
+    { "name": "Medications", "description": "Patient medications" },
+    { "name": "Caregivers", "description": "Caregiver relationships" },
+    { "name": "Doctors", "description": "Doctor actions and notes" },
+    { "name": "Devices", "description": "Wearable devices" },
+    { "name": "AI", "description": "AI analytics, alerts and predictions" },
+    { "name": "Chat", "description": "Chatbot and messaging" },
+    { "name": "Notifications", "description": "Notifications" },
+    { "name": "Admin", "description": "Administrative endpoints" }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "paths": {
+    "/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User registered", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterResponse" } } } },
+          "400": { "description": "Validation error (email and password required)" },
+          "409": { "description": "Email already registered" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login and get JWT",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } },
+        "responses": {
+          "200": { "description": "Authenticated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } } },
+          "400": { "description": "Validation error (email and password required)" },
+          "401": { "description": "Invalid credentials" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout current user",
+        "responses": { "200": { "description": "Logged out", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LogoutResponse" } } } }, "401": { "description": "Unauthorized" }, "500": { "description": "Server error" } }
+      }
+    },
+    "/profile": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current user's profile",
+        "responses": {
+          "200": {
+            "description": "Profile or null when not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/User" },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized" },
+          "500": { "description": "Server error" }
+        }
+      },
+      "put": {
+        "tags": ["Auth"],
+        "summary": "Update current user's profile",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "400": { "description": "Validation error" },
+          "404": { "description": "User not found" },
+          "401": { "description": "Unauthorized" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/profile/avatar": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Upload avatar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "avatar": { "type": "string", "format": "binary" }
+                },
+                "required": ["avatar"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Uploaded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UploadAvatarResponse" } } } }, "401": { "description": "Unauthorized" }, "500": { "description": "Server error" } }
+      }
+    },
+
+    "/patients": {
+      "get": { "tags": ["Patients"], "summary": "List patients", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Patient" } } } } } } },
+      "post": { "tags": ["Patients"], "summary": "Create patient", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatientInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Patient" } } } } } }
+    },
+    "/patients/{id}": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "get": { "tags": ["Patients"], "summary": "Get patient", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Patient" } } } }, "404": { "description": "Not found" } } },
+      "put": { "tags": ["Patients"], "summary": "Update patient", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatientInput" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Patient" } } } } } },
+      "delete": { "tags": ["Patients"], "summary": "Delete patient", "responses": { "204": { "description": "Deleted" } } }
+    },
+    "/patients/{id}/symptoms": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "post": { "tags": ["Symptoms"], "summary": "Add symptom", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SymptomInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Symptom" } } } } } },
+      "get": { "tags": ["Symptoms"], "summary": "List symptoms", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Symptom" } } } } } } }
+    },
+    "/patients/{id}/emotions": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "post": { "tags": ["Emotions"], "summary": "Add emotion", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EmotionInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Emotion" } } } } } },
+      "get": { "tags": ["Emotions"], "summary": "List emotions", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Emotion" } } } } } } }
+    },
+    "/patients/{id}/metrics": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "post": { "tags": ["Metrics"], "summary": "Add metrics", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthMetricInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthMetric" } } } } } },
+      "get": { "tags": ["Metrics"], "summary": "List metrics", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HealthMetric" } } } } } } }
+    },
+    "/patients/{id}/metrics/latest": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "get": { "tags": ["Metrics"], "summary": "Get latest metrics", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HealthMetric" } } } } } }
+    },
+    "/patients/{id}/reminders": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "post": { "tags": ["Reminders"], "summary": "Create reminder", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReminderInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reminder" } } } } } },
+      "get": { "tags": ["Reminders"], "summary": "List reminders", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Reminder" } } } } } } }
+    },
+    "/patients/{id}/medications": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "post": { "tags": ["Medications"], "summary": "Create medication", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MedicationInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Medication" } } } } } },
+      "get": { "tags": ["Medications"], "summary": "List medications", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Medication" } } } } } } }
+    },
+
+    "/caregivers/{id}/patients": {
+      "parameters": [ { "$ref": "#/components/parameters/caregiverId" } ],
+      "get": { "tags": ["Caregivers"], "summary": "List caregiver's patients", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Patient" } } } } } } }
+    },
+    "/caregivers/{id}/assign": {
+      "parameters": [ { "$ref": "#/components/parameters/caregiverId" } ],
+      "post": { "tags": ["Caregivers"], "summary": "Assign caregiver", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CaregiverAssignInput" } } } }, "responses": { "200": { "description": "Assigned" } } }
+    },
+    "/caregivers/{id}/patients/{pid}": {
+      "parameters": [ { "$ref": "#/components/parameters/caregiverId" }, { "$ref": "#/components/parameters/pid" } ],
+      "delete": { "tags": ["Caregivers"], "summary": "Remove patient from caregiver", "responses": { "204": { "description": "Removed" } } }
+    },
+
+    "/doctors/{id}/patients": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" } ],
+      "get": { "tags": ["Doctors"], "summary": "List doctor's patients", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Patient" } } } } } } }
+    },
+    "/doctors/{id}/patients/{pid}/report": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" }, { "$ref": "#/components/parameters/pid" } ],
+      "get": { "tags": ["Doctors"], "summary": "Get patient report", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PatientReport" } } } } } }
+    },
+    "/doctors/{id}/patients/{pid}/notes": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" }, { "$ref": "#/components/parameters/pid" } ],
+      "post": { "tags": ["Doctors"], "summary": "Add doctor note", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DoctorNoteInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DoctorNote" } } } } } }
+    },
+    "/doctors/{id}/patients/{pid}/prescriptions": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" }, { "$ref": "#/components/parameters/pid" } ],
+      "post": { "tags": ["Doctors"], "summary": "Add prescription", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PrescriptionInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Prescription" } } } } } }
+    },
+    "/doctors/{id}/alerts": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" } ],
+      "post": { "tags": ["Doctors"], "summary": "Create doctor alert", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DoctorAlertInput" } } } }, "responses": { "201": { "description": "Created" } } }
+    },
+    "/doctors/{id}/analytics": {
+      "parameters": [ { "$ref": "#/components/parameters/doctorId" } ],
+      "get": { "tags": ["Doctors"], "summary": "Doctor analytics", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } } } }
+    },
+
+    "/devices/register": {
+      "post": { "tags": ["Devices"], "summary": "Register device", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceRegisterInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WearableDevice" } } } } } }
+    },
+    "/devices/{id}": {
+      "parameters": [ { "$ref": "#/components/parameters/deviceId" } ],
+      "get": { "tags": ["Devices"], "summary": "Get device", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WearableDevice" } } } }, "404": { "description": "Not found" } } }
+    },
+    "/devices/{id}/sync": {
+      "parameters": [ { "$ref": "#/components/parameters/deviceId" } ],
+      "post": { "tags": ["Devices"], "summary": "Sync device data", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceSyncInput" } } } }, "responses": { "200": { "description": "Synced", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncResult" } } } } } }
+    },
+    "/devices/{id}/metrics": {
+      "parameters": [ { "$ref": "#/components/parameters/deviceId" } ],
+      "get": { "tags": ["Devices"], "summary": "List device metrics", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HealthMetric" } } } } } } }
+    },
+
+    "/ai/analyze": {
+      "post": { "tags": ["AI"], "summary": "Analyze patient data", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AIAnalyzeInput" } } } }, "responses": { "200": { "description": "Analysis result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AIAnalyzeResult" } } } } } }
+    },
+    "/ai/patients/{id}/alerts": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "get": { "tags": ["AI"], "summary": "Get AI alerts for a patient", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AIAlert" } } } } } } }
+    },
+    "/ai/recommendations": {
+      "post": { "tags": ["AI"], "summary": "Get AI recommendations", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AIRecommendationInput" } } } }, "responses": { "200": { "description": "Recommendations", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AIRecommendationResult" } } } } } }
+    },
+    "/ai/patients/{id}/predictions": {
+      "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
+      "get": { "tags": ["AI"], "summary": "Get AI predictions for a patient", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AIPrediction" } } } } } } }
+    },
+
+    "/chatbot/message": {
+      "post": { "tags": ["Chat"], "summary": "Send message to chatbot", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatbotMessageInput" } } } }, "responses": { "200": { "description": "Bot reply", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatbotMessageResponse" } } } } } }
+    },
+    "/chatbot/history": {
+      "get": { "tags": ["Chat"], "summary": "Get chatbot history", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ChatbotMessage" } } } } } } }
+    },
+    "/messages/{id_receiver}": {
+      "parameters": [ { "$ref": "#/components/parameters/idReceiver" } ],
+      "post": { "tags": ["Chat"], "summary": "Send direct message", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } } } } }
+    },
+    "/messages": {
+      "get": { "tags": ["Chat"], "summary": "List messages", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Message" } } } } } } }
+    },
+
+    "/notifications/send": {
+      "post": { "tags": ["Notifications"], "summary": "Send notification", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationInput" } } } }, "responses": { "200": { "description": "Sent", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Notification" } } } } } }
+    },
+    "/notifications/{id}": {
+      "parameters": [ { "$ref": "#/components/parameters/notificationId" } ],
+      "get": { "tags": ["Notifications"], "summary": "Get notification", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Notification" } } } }, "404": { "description": "Not found" } } },
+      "delete": { "tags": ["Notifications"], "summary": "Delete notification", "responses": { "204": { "description": "Deleted" } } }
+    },
+
+    "/reminders/{id}": {
+      "parameters": [ { "$ref": "#/components/parameters/reminderId" } ],
+      "put": { "tags": ["Reminders"], "summary": "Update reminder", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReminderInput" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reminder" } } } } } },
+      "delete": { "tags": ["Reminders"], "summary": "Delete reminder", "responses": { "204": { "description": "Deleted" } } }
+    },
+
+    "/admin/users": {
+      "get": { "tags": ["Admin"], "summary": "List users", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/User" } } } } } } }
+    },
+    "/admin/reports": {
+      "get": { "tags": ["Admin"], "summary": "List reports", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PatientReport" } } } } } } }
+    },
+    "/admin/logs": {
+      "get": { "tags": ["Admin"], "summary": "List audit logs", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLog" } } } } } } }
+    },
+    "/admin/settings": {
+      "post": { "tags": ["Admin"], "summary": "Update system settings", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemSettingsInput" } } } }, "responses": { "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemSettings" } } } } } }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "patientId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Patient ID" },
+      "caregiverId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Caregiver ID" },
+      "doctorId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Doctor ID" },
+      "deviceId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Device ID" },
+      "notificationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Notification ID" },
+      "reminderId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Reminder ID" },
+      "pid": { "name": "pid", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Patient ID (nested)" },
+      "idReceiver": { "name": "id_receiver", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Receiver user ID" }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "name": { "type": "string" },
+          "phone": { "type": "string" },
+          "role_id": { "type": "integer" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "RegisterResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" }
+        }
+      },
+      "LogoutResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "logged_out" }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "phone": { "type": "string" },
+          "language": { "type": "string" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "email": { "type": "string", "format": "email" },
+          "name": { "type": "string" },
+          "phone": { "type": "string" },
+          "role_id": { "type": "integer" },
+          "status": { "type": "string", "example": "active" },
+          "is_verified": { "type": "boolean" }
+        }
+      },
+      "UploadAvatarResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "avatar uploaded" },
+          "file": { "type": "object", "additionalProperties": true }
+        }
+      },
+
+      "PatientInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "age": { "type": "integer" },
+          "healthStatus": { "type": "string" }
+        }
+      },
+      "Patient": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "age": { "type": "integer" },
+          "healthStatus": { "type": "string" }
+        }
+      },
+
+      "SymptomInput": {
+        "type": "object",
+        "required": ["type", "severity"],
+        "properties": {
+          "type": { "type": "string" },
+          "severity": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "notes": { "type": "string" }
+        }
+      },
+      "Symptom": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "type": { "type": "string" },
+          "severity": { "type": "integer" },
+          "notes": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+
+      "EmotionInput": {
+        "type": "object",
+        "required": ["mood"],
+        "properties": {
+          "mood": { "type": "string", "example": "happy" },
+          "intensity": { "type": "integer", "minimum": 1, "maximum": 10 }
+        }
+      },
+      "Emotion": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "mood": { "type": "string" },
+          "intensity": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+
+      "HealthMetricInput": {
+        "type": "object",
+        "properties": {
+          "heartRate": { "type": "number" },
+          "steps": { "type": "integer" },
+          "sleepHours": { "type": "number" }
+        }
+      },
+      "HealthMetric": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "heartRate": { "type": "number" },
+          "steps": { "type": "integer" },
+          "sleepHours": { "type": "number" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+
+      "ReminderInput": {
+        "type": "object",
+        "required": ["title", "time"],
+        "properties": {
+          "title": { "type": "string" },
+          "time": { "type": "string", "format": "date-time" },
+          "recurring": { "type": "boolean" }
+        }
+      },
+      "Reminder": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "time": { "type": "string", "format": "date-time" },
+          "recurring": { "type": "boolean" }
+        }
+      },
+
+      "MedicationInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "dosage": { "type": "string" },
+          "frequency": { "type": "string" }
+        }
+      },
+      "Medication": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "dosage": { "type": "string" },
+          "frequency": { "type": "string" }
+        }
+      },
+
+      "CaregiverAssignInput": {
+        "type": "object",
+        "required": ["patientId"],
+        "properties": {
+          "patientId": { "type": "integer" }
+        }
+      },
+
+      "DoctorNoteInput": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": { "type": "string" }
+        }
+      },
+      "DoctorNote": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "content": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PrescriptionInput": {
+        "type": "object",
+        "required": ["medication", "instructions"],
+        "properties": {
+          "medication": { "type": "string" },
+          "instructions": { "type": "string" }
+        }
+      },
+      "Prescription": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "medication": { "type": "string" },
+          "instructions": { "type": "string" }
+        }
+      },
+      "DoctorAlertInput": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+
+      "DeviceRegisterInput": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "type": "string" },
+          "serial": { "type": "string" }
+        }
+      },
+      "DeviceSyncInput": {
+        "type": "object",
+        "properties": {
+          "payload": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "SyncResult": {
+        "type": "object",
+        "properties": {
+          "synced": { "type": "boolean" },
+          "count": { "type": "integer" }
+        }
+      },
+      "WearableDevice": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "type": { "type": "string" },
+          "serial": { "type": "string" }
+        }
+      },
+
+      "AIAnalyzeInput": {
+        "type": "object",
+        "properties": {
+          "patientId": { "type": "integer" },
+          "windowDays": { "type": "integer" }
+        }
+      },
+      "AIAnalyzeResult": {
+        "type": "object",
+        "properties": {
+          "riskLevel": { "type": "string", "example": "low" },
+          "insights": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "AIAlert": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "status": { "type": "string" },
+          "message": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AIRecommendationInput": {
+        "type": "object",
+        "properties": {
+          "patientId": { "type": "integer" },
+          "context": { "type": "object", "additionalProperties": true }
+        }
+      },
+      "AIRecommendationResult": {
+        "type": "object",
+        "properties": {
+          "recommendations": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "AIPrediction": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "value": { "type": "number" }
+        }
+      },
+
+      "ChatbotMessageInput": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string" }
+        }
+      },
+      "ChatbotMessageResponse": {
+        "type": "object",
+        "properties": {
+          "reply": { "type": "string" }
+        }
+      },
+      "ChatbotMessage": {
+        "type": "object",
+        "properties": {
+          "sender": { "type": "string" },
+          "message": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MessageInput": {
+        "type": "object",
+        "required": ["content"],
+        "properties": {
+          "content": { "type": "string" }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "from": { "type": "integer" },
+          "to": { "type": "integer" },
+          "content": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+
+      "NotificationInput": {
+        "type": "object",
+        "required": ["title", "body"],
+        "properties": {
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "userId": { "type": "integer" }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      },
+
+      "PatientReport": {
+        "type": "object",
+        "properties": {
+          "patientId": { "type": "integer" },
+          "summary": { "type": "string" }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "action": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SystemSettingsInput": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "type": "string" }
+        }
+      },
+      "SystemSettings": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+
+
