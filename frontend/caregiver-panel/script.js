@@ -153,13 +153,17 @@ document.getElementById('sendMessageForm').addEventListener('submit', async func
 
 // Export Reports
 function exportToPDF(section) {
-    // Server-side export (CSV placeholder)
-    window.location = '/caregiver/reports/export?format=pdf';
+    const sel = document.getElementById('reportPatientFilter');
+    const pid = sel ? sel.value : '';
+    const qs = pid ? `?format=pdf&pid=${encodeURIComponent(pid)}` : `?format=pdf`;
+    window.location = `/caregiver/reports/export${qs}`;
 }
 
 function exportToExcel(section) {
-    // Server-side export (CSV)
-    window.location = '/caregiver/reports/export?format=excel';
+    const sel = document.getElementById('reportPatientFilter');
+    const pid = sel ? sel.value : '';
+    const qs = pid ? `?format=excel&pid=${encodeURIComponent(pid)}` : `?format=excel`;
+    window.location = `/caregiver/reports/export${qs}`;
 }
 
 // Save Settings

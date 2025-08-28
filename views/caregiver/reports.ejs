@@ -5,7 +5,7 @@
             <select class="form-select" id="reportPatientFilter" onchange="location.href='/caregiver/reports'+(this.value?('?pid='+this.value):'')">
                 <option value="">Select Patient</option>
                 <% (patients||[]).forEach(p => { %>
-                <option value="<%= p.id %>"><%= p.User?.name %> (PT<%= p.id %>)</option>
+                <option value="<%= p.id %>" <%= String(p.id)===String(selectedPid||'')?'selected':'' %>><%= p.User?.name %> (PT<%= p.id %>)</option>
                 <% }) %>
             </select>
         </div>
@@ -31,8 +31,12 @@
                 <tr>
                     <td>PT<%= r.patient_id %></td>
                     <td><%= new Date(r.created_at).toISOString().slice(0,10) %></td>
-                    <td><%= r.summary || '' %></td>
-                    <td><%= r.details || '' %></td>
+                    <td><%= r.report_type || (r.content && r.content.title) || '' %></td>
+                    <td>
+                        <%= (r.content && typeof r.content === 'object')
+                            ? Object.entries(r.content).map(function(entry){ return entry[0]+': '+entry[1]; }).join(', ')
+                            : (r.content || '') %>
+                    </td>
                 </tr>
                 <% }) %>
             </tbody>

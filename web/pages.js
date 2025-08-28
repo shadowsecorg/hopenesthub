@@ -564,7 +564,7 @@ router.get('/caregiver/reports', async (req, res) => {
     if (pid) where.patient_id = pid;
     const reports = await db.PatientReport.findAll({ where, order: [['created_at', 'DESC']], limit: 200 });
     const caregiverId = req.user?.id || 1;
-    res.render('caregiver/reports', { layout: 'layouts/caregiver_layout', active: 'reports', patients, reports, caregiverId });
+    res.render('caregiver/reports', { layout: 'layouts/caregiver_layout', active: 'reports', patients, reports, caregiverId, selectedPid: pid || '' });
   } catch (err) { res.status(500).send(err.message); }
 });
 
@@ -661,14 +661,67 @@ router.post('/caregiver/alerts/:id/dismiss', async (req, res) => {
 // Caregiver: export reports (CSV minimal)
 router.get('/caregiver/reports/export', async (req, res) => {
   try {
-    const { format } = req.query;
-    const reports = await db.PatientReport.findAll({ order: [['created_at', 'DESC']], limit: 200 });
-    const rows = [['patient_id', 'created_at', 'summary', 'details']].concat(
-      reports.map(r => [r.patient_id, r.created_at?.toISOString?.() || r.created_at, r.summary || '', r.details || ''])
+    const { format, pid } = req.query;
+    const where = {};
+    if (pid) where.patient_id = pid;
+    const reports = await db.PatientReport.findAll({ where, order: [['created_at', 'DESC']], limit: 2000 });
+
+    const records = reports.map(r => ({
+      patient_id: r.patient_id,
+      created_at: r.created_at?.toISOString?.() || r.created_at,
+      report_type: r.report_type || '',
+      content: r.content ? (typeof r.content === 'object' ? JSON.stringify(r.content) : String(r.content)) : ''
+    }));
+
+    if ((format || '').toLowerCase() === 'pdf') {
+      const PDFDocument = require('pdfkit');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="reports${pid?`_PT${pid}`:''}.pdf"`);
+      const doc = new PDFDocument({ margin: 36 });
+      doc.pipe(res);
+      doc.fontSize(16).text('Caregiver Reports Export', { align: 'center' });
+      if (pid) doc.moveDown(0.5).fontSize(10).text(`Patient: PT${pid}`, { align: 'center' });
+      doc.moveDown();
+      records.forEach((rec, idx) => {
+        doc.fontSize(12).text(`#${idx+1}  PT${rec.patient_id}  ${rec.created_at}`);
+        doc.fontSize(11).text(`Type: ${rec.report_type}`);
+        doc.fontSize(10).text(`Content: ${rec.content}`);
+        doc.moveDown();
+      });
+      doc.end();
+      return;
+    }
+
+    if ((format || '').toLowerCase() === 'excel') {
+      try {
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Reports');
+        worksheet.columns = [
+          { header: 'patient_id', key: 'patient_id', width: 12 },
+          { header: 'created_at', key: 'created_at', width: 20 },
+          { header: 'report_type', key: 'report_type', width: 20 },
+          { header: 'content', key: 'content', width: 60 }
+        ];
+        records.forEach(r => worksheet.addRow(r));
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="reports${pid?`_PT${pid}`:''}.xlsx"`);
+        await workbook.xlsx.write(res);
+        return res.end();
+      } catch (e) {
+        // Fallback to CSV if exceljs is unavailable
+      }
+    }
+
+    // Default to CSV compatible with Excel
+    const headers = ['patient_id','created_at','report_type','content'];
+    const rows = [headers].concat(
+      records.map(rec => headers.map(h => `"${String(rec[h]).replace(/"/g, '""')}"`))
     );
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.join(',')).join('\n');
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="reports.csv"');
+    const filename = `reports${pid?`_PT${pid}`:''}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -720,6 +773,49 @@ router.post('/caregiver/recommendations/:id/delete', async (req, res) => {
     await db.DoctorNote.destroy({ where: { id: req.params.id } });
     return respondOk(req, res, '/caregiver/recommendations');
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
+});
+
+// DEV: quick demo data populate for caregiver panel
+router.post('/caregiver/dev/populate', async (req, res) => {
+  try {
+    if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'disabled in production' });
+    const userId = req.user?.id || 1;
+    // Find or create a patient
+    let patient = await db.Patient.findOne({ include: [{ model: db.User, attributes: ['name'] }], order: [['id','ASC']] });
+    if (!patient) {
+      const bcrypt = require('bcryptjs');
+      const password_hash = await bcrypt.hash('ChangeMe123!', 8);
+      const u = await db.User.create({ name: 'Demo Patient', email: `demo_patient_${Date.now()}@local`, password_hash, role_id: 3, status: 'active' });
+      patient = await db.Patient.create({ user_id: u.id, cancer_type: 'Demo', diagnosis_date: new Date(), treatment_plan: 'Demo' });
+    }
+    // Ensure assigned to caregiver 1 (or current user)
+    const caregiverId = 1;
+    await db.PatientCaregiver.findOrCreate({ where: { patient_id: patient.id, caregiver_id: caregiverId }, defaults: { patient_id: patient.id, caregiver_id: caregiverId } });
+
+    const now = new Date();
+    const day = 24*3600*1000;
+    const safe = async (fn) => { try { await fn(); } catch (_) {} };
+
+    // Health metrics for last 7 days
+    for (let i=6;i>=0;i--) {
+      const d = new Date(now.getTime() - i*day);
+      await safe(()=>db.HealthMetric.create({ patient_id: patient.id, source: 'fitbit', heart_rate: 65+Math.floor(Math.random()*20), spo2: 95+Math.floor(Math.random()*4), temperature: 36+Math.random(), steps: 3000+Math.floor(Math.random()*5000), sleep_hours: 6+Math.random()*2, recorded_at: d }));
+    }
+    // Emotions
+    await safe(()=>db.Emotion.create({ patient_id: patient.id, emotion_type: 'anxiety', intensity: 2, notes: 'mild', recorded_at: now }));
+    await safe(()=>db.Emotion.create({ patient_id: patient.id, emotion_type: 'calm', intensity: 3, notes: 'after walk', recorded_at: new Date(now.getTime()-2*day) }));
+    // Symptoms
+    await safe(()=>db.Symptom.create({ patient_id: patient.id, symptom_type: 'nausea', severity: 2, notes: 'morning', recorded_at: new Date(now.getTime()-day) }));
+    // Reports
+    await safe(()=>db.PatientReport.create({ patient_id: patient.id, report_type: 'weekly_summary', content: { steps: 22000, avg_hr: 72, note: 'stable' }, created_at: now }));
+    await safe(()=>db.PatientReport.create({ patient_id: patient.id, report_type: 'recommendation', content: { text: 'Increase hydration and light activity.' }, created_at: new Date(now.getTime()-2*day) }));
+    // Alerts
+    await safe(()=>db.AiAlert.create({ patient_id: patient.id, alert_type: 'high_heart_rate', severity: 'low', description: 'Slightly elevated average HR', created_at: now }));
+    // Messages
+    await safe(()=>db.Message.create({ sender_id: userId, receiver_id: 1, message_type: 'text', content: 'Checking in with patient.', created_at: now }));
+
+    return res.json({ ok: true, patient_id: patient.id });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
