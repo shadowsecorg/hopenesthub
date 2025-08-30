@@ -12,8 +12,11 @@
           <option value="critical">Critical</option>
         </select>
       </div>
-      <div class="col-md-3 text-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal"
-          data-bs-target="#addPatientModal">Add Patient</button></div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-primary w-100">Filter</button>
+      </div>
+      <!-- <div class="col-md-3 text-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal"
+          data-bs-target="#addPatientModal">Add Patient</button></div> -->
     </form>
   </div>
   <div class="card p-3 mb-4">
@@ -40,10 +43,10 @@
                 <%= p.health_status || 'Stable' %>
               </td>
               <td>
-                <button class="btn btn-sm btn-primary btn-details" data-id="<%= p.id %>" data-bs-toggle="modal"
+                <button class="btn btn-sm btn-primary btn-details btn-equal me-2" data-id="<%= p.id %>" data-bs-toggle="modal"
                   data-bs-target="#patientDetailsModal">View Details</button>
                 <form class="d-inline" method="post" action="/admin/patients/<%= p.id %>/delete"><button
-                    class="btn btn-sm btn-danger">Delete</button></form>
+                    class="btn btn-sm btn-danger btn-equal">Delete</button></form>
               </td>
             </tr>
             <% }) %>

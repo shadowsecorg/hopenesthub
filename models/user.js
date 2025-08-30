@@ -13,6 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Message, { foreignKey: 'receiver_id', as: 'receivedMessages' });
       User.hasMany(models.ApiToken, { foreignKey: 'user_id' });
       User.hasMany(models.AuditLog, { foreignKey: 'user_id' });
+      User.hasMany(models.WearableDevice, { foreignKey: 'user_id' });
     }
   }
 

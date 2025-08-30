@@ -6,8 +6,13 @@ module.exports = {
     const now = new Date();
 
     await queryInterface.bulkInsert('health_metrics', [
-      { patient_id: 1, source: 'fitbit', heart_rate: 72, spo2: 98, temperature: 36.7, steps: 3200, recorded_at: now },
-      { patient_id: 1, source: 'fitbit', heart_rate: 75, spo2: 97, temperature: 36.8, steps: 5400, recorded_at: now }
+      { patient_id: 1, source: 'fitbit', heart_rate: 72, spo2: 98, temperature: 36.7, steps: 3200, sleep_hours: 7.5, recorded_at: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 75, spo2: 97, temperature: 36.8, steps: 5400, sleep_hours: 6.8, recorded_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 68, spo2: 99, temperature: 36.6, steps: 4100, sleep_hours: 8.2, recorded_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 79, spo2: 96, temperature: 36.9, steps: 6200, sleep_hours: 6.5, recorded_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 71, spo2: 98, temperature: 36.7, steps: 3800, sleep_hours: 7.8, recorded_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 76, spo2: 97, temperature: 36.8, steps: 5100, sleep_hours: 7.2, recorded_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, source: 'fitbit', heart_rate: 73, spo2: 98, temperature: 36.7, steps: 4500, sleep_hours: 7.0, recorded_at: now }
     ]);
 
     await queryInterface.bulkInsert('symptoms', [
@@ -36,7 +41,9 @@ module.exports = {
     ]);
 
     await queryInterface.bulkInsert('ai_alerts', [
-      { patient_id: 1, alert_type: 'high_heart_rate', severity: 'low', description: 'Slightly elevated avg. HR', created_at: now }
+      { patient_id: 1, alert_type: 'high_heart_rate', severity: 'low', description: 'Heart rate slightly elevated', status: 'active', created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, alert_type: 'poor_sleep', severity: 'medium', description: 'Sleep quality below recommended levels', status: 'active', created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
+      { patient_id: 1, alert_type: 'low_activity', severity: 'low', description: 'Daily step count below target', status: 'acknowledged', created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000) }
     ]);
 
     await queryInterface.bulkInsert('ai_predictions', [
@@ -44,7 +51,9 @@ module.exports = {
     ]);
 
     await queryInterface.bulkInsert('doctor_notes', [
-      { doctor_id: 1, patient_id: 1, note_type: 'visit', content: 'Routine follow-up. Monitor nausea.', created_at: now }
+      { doctor_id: 1, patient_id: 1, note_type: 'visit', content: 'Routine follow-up. Monitor nausea.', created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000) },
+      { doctor_id: 1, patient_id: 1, note_type: 'consultation', content: 'Patient reports improved sleep quality. Continue current medication.', created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000) },
+      { doctor_id: 1, patient_id: 1, note_type: 'assessment', content: 'Blood pressure stable. Recommend increased physical activity.', created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) }
     ]);
 
     await queryInterface.bulkInsert('prescriptions', [
@@ -52,7 +61,7 @@ module.exports = {
     ]);
 
     await queryInterface.bulkInsert('patient_reports', [
-      { patient_id: 1, report_type: 'weekly_summary', content: { steps: 22000, avg_hr: 73 }, created_at: now }
+      { patient_id: 1, report_type: 'weekly_summary', content: JSON.stringify({ steps: 22000, avg_hr: 73 }), created_at: now }
     ]);
 
     await queryInterface.bulkInsert('audit_logs', [

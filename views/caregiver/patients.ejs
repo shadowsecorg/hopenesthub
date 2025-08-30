@@ -26,7 +26,7 @@
                     <td>PT<%= p.id %></td>
                     <td><%= p.User?.name || '-' %></td>
                     <td><%= p.User?.date_of_birth ? Math.max(0, Math.floor((Date.now() - new Date(p.User.date_of_birth).getTime()) / (365.25*24*60*60*1000))) : '-' %></td>
-                    <td>-</td>
+                    <td><% if (p.User && p.User.WearableDevices && p.User.WearableDevices.length > 0) { %><%= p.User.WearableDevices[0].device_type %><% } else { %>-<% } %></td>
                     <td><%= p.health_status || '-' %></td>
                     <td>
                         <button class="btn btn-sm btn-primary" onclick="assignPatient(<%= p.id %>)">Assign to Me</button>
@@ -40,11 +40,29 @@
 
 <script>
 document.getElementById('searchPatients')?.addEventListener('input', function () {
-  const val = this.value.toLowerCase();
-  document.querySelectorAll('#patientRows tr').forEach(tr => {
+  const val = this.value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#patientRows tr');
+  
+  if (val === '') {
+    // Show all rows if search is empty
+    rows.forEach(tr => tr.style.display = '');
+    return;
+  }
+  
+  rows.forEach(tr => {
     const id = tr.cells[0].textContent.toLowerCase();
     const name = tr.cells[1].textContent.toLowerCase();
-    tr.style.display = (id.includes(val) || name.includes(val)) ? '' : 'none';
+    const age = tr.cells[2].textContent.toLowerCase();
+    const device = tr.cells[3].textContent.toLowerCase();
+    const status = tr.cells[4].textContent.toLowerCase();
+    
+    const matches = id.includes(val) || 
+                   name.includes(val) || 
+                   age.includes(val) || 
+                   device.includes(val) || 
+                   status.includes(val);
+    
+    tr.style.display = matches ? '' : 'none';
   });
 });
 </script>

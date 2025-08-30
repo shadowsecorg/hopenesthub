@@ -19,6 +19,7 @@ module.exports = (sequelize, DataTypes) => {
       Patient.hasMany(models.Prescription, { foreignKey: 'patient_id' });
       Patient.hasMany(models.PatientReport, { foreignKey: 'patient_id' });
       Patient.belongsToMany(models.Caregiver, { through: models.PatientCaregiver, foreignKey: 'patient_id', otherKey: 'caregiver_id' });
+      Patient.hasMany(models.WearableDevice, { foreignKey: 'user_id', sourceKey: 'user_id' });
     }
   }
 

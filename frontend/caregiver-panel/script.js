@@ -18,10 +18,9 @@
 // Add Patient
 document.getElementById('addPatientForm').addEventListener('submit', async function (e) {
     e.preventDefault();
-    const patientId = document.getElementById('patientId').value;
     const patientName = document.getElementById('patientName').value;
     const patientAge = document.getElementById('patientAge').value;
-    if (!patientId || !patientName || !patientAge) {
+    if (!patientName || !patientAge) {
         alert('All fields are required.');
         return;
     }
@@ -29,7 +28,7 @@ document.getElementById('addPatientForm').addEventListener('submit', async funct
         await fetch('/caregiver/patients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ patientId, patientName, patientAge })
+            body: JSON.stringify({ patientName, patientAge })
         });
         document.getElementById('addPatientForm').reset();
         bootstrap.Modal.getInstance(document.getElementById('addPatientModal')).hide();
@@ -43,14 +42,22 @@ document.getElementById('addPatientForm').addEventListener('submit', async funct
 async function assignPatient(patientId) {
     if (!confirm(`Assign patient ${patientId} to your care?`)) return;
     try {
-        await fetch('/caregiver/assign', {
+        const response = await fetch('/caregiver/assign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ caregiver_id: window.caregiverId || 1, patient_id: patientId })
         });
-        alert('Assigned');
+        
+        if (response.ok) {
+            alert('Patient assigned successfully!');
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert(`Failed to assign: ${error.error || 'Unknown error'}`);
+        }
     } catch (err) {
-        alert('Failed to assign');
+        alert('Failed to assign patient. Please try again.');
+        console.error('Assign error:', err);
     }
 }
 

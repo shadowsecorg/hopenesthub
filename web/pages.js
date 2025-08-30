@@ -195,9 +195,11 @@ router.get('/admin/patients/:id/details', async (req, res) => {
 router.post('/admin/patients', async (req, res) => {
   try {
     const { user_id, cancer_type, diagnosis_date, assigned_doctor_id } = req.body;
+    console.log(req.body);
     await db.Patient.create({ user_id, cancer_type, diagnosis_date, assigned_doctor_id });
     res.redirect('/admin/patients');
   } catch (err) {
+    console.log(err);
     res.status(500).send(err.message);
   }
 });
@@ -516,7 +518,23 @@ router.get('/caregiver/api/dashboard', async (req, res) => {
 
 router.get('/caregiver/patient-list', async (req, res) => {
   try {
-    const patients = await db.Patient.findAll({ include: [{ model: db.User, attributes: ['name', 'date_of_birth'] }], order: [['id','ASC']] });
+    const patients = await db.Patient.findAll({ 
+      include: [
+        { 
+          model: db.User, 
+          attributes: ['name', 'date_of_birth'],
+          include: [
+            { 
+              model: db.WearableDevice, 
+              attributes: ['device_type', 'status'], 
+              where: { status: 'connected' }, 
+              required: false 
+            }
+          ]
+        }
+      ], 
+      order: [['id','ASC']] 
+    });
     const caregiverId = req.user?.id || 1;
     res.render('caregiver/patients', { layout: 'layouts/caregiver_layout', active: 'patients', patients, caregiverId });
   } catch (err) { res.status(500).send(err.message); }
@@ -607,14 +625,27 @@ router.post('/caregiver/assign', async (req, res) => {
 // Caregiver: add patient (simplified demo — creates User + Patient)
 router.post('/caregiver/patients', async (req, res) => {
   try {
-    const { patientId, patientName, patientAge } = req.body;
+    const { patientName, patientAge } = req.body;
     const name = String(patientName || '').trim();
     if (!name) return res.status(400).json({ error: 'patientName is required' });
+    
+    // Calculate date of birth from age
+    const age = parseInt(patientAge) || 0;
+    const dateOfBirth = new Date();
+    dateOfBirth.setFullYear(dateOfBirth.getFullYear() - age);
+    
     const email = `patient_${Date.now()}@example.com`;
     const bcrypt = require('bcryptjs');
     const password_hash = await bcrypt.hash('ChangeMe123!', 8);
     const roleId = 3; // patient role
-    const user = await db.User.create({ name, email, role_id: roleId, status: 'active', password_hash });
+    const user = await db.User.create({ 
+      name, 
+      email, 
+      role_id: roleId, 
+      status: 'active', 
+      password_hash,
+      date_of_birth: dateOfBirth
+    });
     await db.Patient.create({ user_id: user.id });
     return respondOk(req, res, '/caregiver/patient-list');
   } catch (err) {
