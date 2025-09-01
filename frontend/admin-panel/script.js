@@ -29,6 +29,20 @@ function loadTemplate() {
     }
 }
 
+// Wire up message page controls
+document.addEventListener('DOMContentLoaded', function () {
+    const rType = document.getElementById('recipientType');
+    if (rType) {
+        rType.addEventListener('change', toggleRecipientSelection);
+        // Initialize state on load
+        try { toggleRecipientSelection(); } catch (_) {}
+    }
+    const tpl = document.getElementById('messageTemplate');
+    if (tpl) {
+        tpl.addEventListener('change', loadTemplate);
+    }
+});
+
 // Handle form submission
 (() => {
   const form = document.getElementById('sendMessageForm');

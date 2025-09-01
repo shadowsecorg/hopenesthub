@@ -4,6 +4,9 @@
         <div class="col-md-3">
             <input type="text" class="form-control" id="searchPatients" placeholder="Search by ID or Name">
         </div>
+        <div class="col-md-2">
+            <button class="btn btn-outline-secondary w-100" id="searchBtn" type="button">Search</button>
+        </div>
         <div class="col-md-3">
             <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addPatientModal">Add Patient</button>
         </div>
@@ -39,31 +42,24 @@
 </div>
 
 <script>
-document.getElementById('searchPatients')?.addEventListener('input', function () {
-  const val = this.value.toLowerCase().trim();
+function filterPatients(val){
+  val = (val||'').toLowerCase().trim();
   const rows = document.querySelectorAll('#patientRows tr');
-  
-  if (val === '') {
-    // Show all rows if search is empty
-    rows.forEach(tr => tr.style.display = '');
-    return;
-  }
-  
+  if (val === '') { rows.forEach(tr => tr.style.display = ''); return; }
   rows.forEach(tr => {
     const id = tr.cells[0].textContent.toLowerCase();
     const name = tr.cells[1].textContent.toLowerCase();
     const age = tr.cells[2].textContent.toLowerCase();
     const device = tr.cells[3].textContent.toLowerCase();
     const status = tr.cells[4].textContent.toLowerCase();
-    
-    const matches = id.includes(val) || 
-                   name.includes(val) || 
-                   age.includes(val) || 
-                   device.includes(val) || 
-                   status.includes(val);
-    
+    const matches = id.includes(val) || name.includes(val) || age.includes(val) || device.includes(val) || status.includes(val);
     tr.style.display = matches ? '' : 'none';
   });
+}
+document.getElementById('searchPatients')?.addEventListener('input', function () { filterPatients(this.value); });
+document.getElementById('searchBtn')?.addEventListener('click', function(){
+  const val = document.getElementById('searchPatients')?.value || '';
+  filterPatients(val);
 });
 </script>
 

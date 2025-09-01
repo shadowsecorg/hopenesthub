@@ -2,17 +2,17 @@
         <h2>Reports</h2>
         <div class="card p-3 mb-4">
           <form class="row g-2" method="get" action="/admin/reports">
-            <div class="col-md-3"><input type="text" name="pid" class="form-control" placeholder="Search by Patient ID"></div>
+            <div class="col-md-3"><input type="text" name="pid" class="form-control" placeholder="Search by Patient ID" value="<%= pid || '' %>"></div>
             <div class="col-md-3">
-              <select class="form-select" name="range">
-                <option value="">All Time Periods</option>
-                <option value="last-week">Last Week</option>
-                <option value="last-month">Last Month</option>
-                <option value="custom">Custom Range</option>
+              <select class="form-select" name="range" id="rangeSelect">
+                <option value="" <%= (range||'') === '' ? 'selected' : '' %>>All Time Periods</option>
+                <option value="last-week" <%= (range||'') === 'last-week' ? 'selected' : '' %>>Last Week</option>
+                <option value="last-month" <%= (range||'') === 'last-month' ? 'selected' : '' %>>Last Month</option>
+                <option value="custom" <%= (range||'') === 'custom' ? 'selected' : '' %>>Custom Range</option>
               </select>
             </div>
-            <div class="col-md-3"><input type="date" name="start" class="form-control" id="startDate"></div>
-            <div class="col-md-3"><input type="date" name="end" class="form-control" id="endDate"></div>
+            <div class="col-md-3"><input type="date" name="start" class="form-control" id="startDate" value="<%= start || '' %>" <%= (range||'')==='custom' ? '' : 'disabled' %>></div>
+            <div class="col-md-3"><input type="date" name="end" class="form-control" id="endDate" value="<%= end || '' %>" <%= (range||'')==='custom' ? '' : 'disabled' %>></div>
             <div class="col-md-3"><button class="btn btn-outline-primary">Generate Report</button></div>
           </form>
         </div>
@@ -40,13 +40,13 @@
                 <tr><th>Patient ID</th><th>Name</th><th>Average Heart Rate</th><th>Average Sleep Quality</th><th>Average Activity</th></tr>
               </thead>
               <tbody>
-                <% (patientReports || []).forEach(function(r){ %>
+                <% (patientComparison || []).forEach(function(row){ %>
                   <tr>
-                    <td><%= r.patient_id %></td>
-                    <td>-</td>
-                    <td><%= r.content?.avg_hr || '-' %></td>
-                    <td><%= r.content?.avg_sleep || '-' %></td>
-                    <td><%= r.content?.avg_steps || '-' %></td>
+                    <td><%= row.patient_id %></td>
+                    <td><%= row.name %></td>
+                    <td><%= typeof row.avg_hr === 'number' ? row.avg_hr : '-' %></td>
+                    <td><%= typeof row.avg_sleep === 'number' ? row.avg_sleep : '-' %>%</td>
+                    <td><%= typeof row.avg_steps === 'number' ? row.avg_steps : '-' %></td>
                   </tr>
                 <% }) %>
               </tbody>
@@ -54,5 +54,20 @@
           </div>
         </div>
       </div>
+
+      <script>
+        (function(){
+          var sel = document.getElementById('rangeSelect');
+          if (!sel) return;
+          function toggleDates(){
+            var custom = sel.value === 'custom';
+            var s = document.getElementById('startDate');
+            var e = document.getElementById('endDate');
+            if (s) s.disabled = !custom;
+            if (e) e.disabled = !custom;
+          }
+          sel.addEventListener('change', toggleDates);
+        })();
+      </script>
 
 

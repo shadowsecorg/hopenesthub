@@ -1,22 +1,51 @@
 <div class="p-4">
         <h2>Alerts</h2>
         <div class="card p-3 mb-3">
-          <form class="row g-2" method="post" action="/admin/alert-settings">
-            <input type="hidden" name="user_id" value="1">
-            <div class="col-md-3"><input class="form-control" type="number" name="heart_rate_threshold" placeholder="Heart Rate Threshold (bpm)"></div>
-            <div class="col-md-3"><input class="form-control" type="number" name="sleep_threshold" placeholder="Sleep Threshold (%)"></div>
-            <div class="col-md-3"><input class="form-control" type="number" name="activity_threshold" placeholder="Activity Threshold (steps)"></div>
-            <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Save Settings</button></div>
+          <form class="row g-2" method="get" action="/admin/alerts">
+            <div class="col-md-3">
+              <input class="form-control" type="text" name="userId" placeholder="User ID" value="<%= selected?.userId || '' %>">
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" name="type">
+                <option value="">All Types</option>
+                <option value="high_heart_rate" <%= (selected?.type==='high_heart_rate')?'selected':'' %>>High Heart Rate</option>
+                <option value="poor_sleep" <%= (selected?.type==='poor_sleep')?'selected':'' %>>Poor Sleep</option>
+                <option value="low_activity" <%= (selected?.type==='low_activity')?'selected':'' %>>Low Activity</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <select class="form-select" name="severity">
+                <option value="">All Severities</option>
+                <option value="low" <%= (selected?.severity==='low')?'selected':'' %>>Low</option>
+                <option value="medium" <%= (selected?.severity==='medium')?'selected':'' %>>Medium</option>
+                <option value="high" <%= (selected?.severity==='high')?'selected':'' %>>High</option>
+                <option value="critical" <%= (selected?.severity==='critical')?'selected':'' %>>Critical</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <select class="form-select" name="status">
+                <option value="">All Statuses</option>
+                <option value="active" <%= (selected?.status==='active')?'selected':'' %>>Active</option>
+                <option value="confirmed" <%= (selected?.status==='confirmed')?'selected':'' %>>Confirmed</option>
+                <option value="rejected" <%= (selected?.status==='rejected')?'selected':'' %>>Rejected</option>
+                <option value="acknowledged" <%= (selected?.status==='acknowledged')?'selected':'' %>>Acknowledged</option>
+                <option value="dismissed" <%= (selected?.status==='dismissed')?'selected':'' %>>Dismissed</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <button class="btn btn-primary w-100" type="submit">Filter</button>
+            </div>
           </form>
         </div>
         <div class="card p-3">
           <div class="table-responsive">
             <table class="table table-striped">
-              <thead><tr><th>ID</th><th>Patient</th><th>Type</th><th>Severity</th><th>Status</th><th>When</th><th>Actions</th></tr></thead>
+              <thead><tr><th>ID</th><th>User ID</th><th>Patient</th><th>Type</th><th>Severity</th><th>Status</th><th>When</th><th>Actions</th></tr></thead>
               <tbody>
                 <% alerts.forEach(a => { %>
                   <tr>
                     <td><%= a.id %></td>
+                    <td><%= a.Patient?.User?.id || '' %></td>
                     <td><%= a.Patient?.User?.name || a.patient_id %></td>
                     <td><%= a.alert_type %></td>
                     <td><%= a.severity %></td>

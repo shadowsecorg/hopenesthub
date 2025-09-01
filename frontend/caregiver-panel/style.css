@@ -155,7 +155,9 @@ body {
 .card.bg-success {
     background-color: #28a745 !important;
 }
-.card .bi {
+.card.bg-primary .bi,
+.card.bg-danger .bi,
+.card.bg-success .bi {
     color: #ffffff;
 }
 .card.bg-warning .bi {

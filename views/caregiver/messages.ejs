@@ -2,14 +2,6 @@
 <div class="card p-3 mb-4">
     <div class="row mb-3">
         <div class="col-md-3">
-            <select class="form-select" id="messageRecipient">
-                <option value="">Select Recipient</option>
-                <% (patients||[]).forEach(p => { %>
-                <option value="<%= p.user_id %>"><%= p.User?.name %> (Patient)</option>
-                <% }) %>
-            </select>
-        </div>
-        <div class="col-md-3">
             <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#sendMessageModal">Send New Message</button>
         </div>
     </div>
@@ -21,6 +13,7 @@
                     <th>Message</th>
                     <th>Date</th>
                     <th>Status</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -30,11 +23,34 @@
                     <td><%= m.content || '' %></td>
                     <td><%= new Date(m.created_at).toISOString().replace('T',' ').slice(0,16) %></td>
                     <td>Sent</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a class="btn btn-sm btn-outline-primary" title="Reply" href="/caregiver/messages/thread/<%= (m.sender_id === caregiverId ? m.receiver_id : m.sender_id) || '' %>">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteMessage(<%= m.id %>)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            <a class="btn btn-sm btn-outline-secondary" title="View" href="/caregiver/messages/thread/<%= (m.sender_id === caregiverId ? m.receiver_id : m.sender_id) || '' %>">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </div>
+                    </td>
                 </tr>
                 <% }) %>
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+async function deleteMessage(id) {
+    if (!confirm('Are you sure?')) return;
+    try {
+        const res = await fetch(`/caregiver/messages/${id}/delete`, { method: 'POST' });
+        if (res.ok) location.reload(); else alert('Delete failed');
+    } catch (e) { alert('Delete failed'); }
+}
+</script>
 
 

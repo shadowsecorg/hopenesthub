@@ -177,6 +177,9 @@
                             <div class="col-md-3">
                                 <input type="text" class="form-control" id="searchPatients" placeholder="Search by ID or Name">
                             </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-secondary w-100" id="searchBtn" type="button">Search</button>
+                            </div>
                             <div class="col-md-3">
                                 <button class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#addPatientModal">Add Patient</button>
                             </div>
@@ -419,12 +422,16 @@
                 <div class="modal-body">
                     <form id="addPatientForm">
                         <div class="mb-3">
-                            <label for="patientId" class="form-label">Patient ID</label>
-                            <input type="text" class="form-control" id="patientId" placeholder="Enter Patient ID" required>
-                        </div>
-                        <div class="mb-3">
                             <label for="patientName" class="form-label">Patient Name</label>
                             <input type="text" class="form-control" id="patientName" placeholder="Enter Patient Name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="patientEmail" placeholder="Enter Email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="patientPassword" placeholder="Enter Password" minlength="6" required>
                         </div>
                         <div class="mb-3">
                             <label for="patientAge" class="form-label">Age</label>

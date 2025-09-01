@@ -16,6 +16,24 @@ function respondOk(req, res, fallbackRedirect, payload) {
   return res.redirect(fallbackRedirect);
 }
 
+// Resolve a valid caregiver user id even if req.user is missing
+async function resolveCaregiverUserId(req) {
+  try {
+    let id = (req.user && req.user.id) ? parseInt(req.user.id, 10) : null;
+    if (id) {
+      const exists = await db.User.count({ where: { id } });
+      if (exists) return id;
+    }
+    const caregiverRole = await db.Role.findOne({ where: { name: 'caregiver' } });
+    const user = caregiverRole
+      ? await db.User.findOne({ where: { role_id: caregiverRole.id }, order: [['id', 'ASC']] })
+      : await db.User.findOne({ order: [['id', 'ASC']] });
+    return user ? user.id : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // Admin panel
 router.get(['/admin', '/admin/index'], async (req, res) => {
   try {
@@ -77,14 +95,23 @@ router.get('/admin/users', async (req, res) => {
         { email: { [db.Sequelize.Op.iLike]: `%${q}%` } }
       ];
     }
+    // Load roles for filters and forms
+    const roles = await db.Role.findAll({ order: [['id', 'ASC']] });
     if (role) {
-      const roleMap = { patient: 3, caregiver: 4, doctor: 2, admin: 1 };
-      const roleId = roleMap[role] || parseInt(role, 10);
-      if (roleId) where.role_id = roleId;
+      let roleIdFilter = null;
+      const numeric = String(role).match(/^\d+$/);
+      if (numeric) {
+        const r = await db.Role.findByPk(parseInt(role, 10));
+        if (r) roleIdFilter = r.id;
+      } else {
+        const r = await db.Role.findOne({ where: { name: role } });
+        if (r) roleIdFilter = r.id;
+      }
+      if (roleIdFilter) where.role_id = roleIdFilter;
     }
     if (status) where.status = status;
-    const users = await db.User.findAll({ where, attributes: { exclude: ['password_hash'] }, order: [['id', 'ASC']] });
-    res.render('admin/users', { layout: 'layouts/admin_layout', active: 'users', title: 'User Management', users });
+    const users = await db.User.findAll({ where, attributes: { exclude: ['password_hash'] }, include: [{ model: db.Role, attributes: ['id', 'name'] }], order: [['id', 'ASC']] });
+    res.render('admin/users', { layout: 'layouts/admin_layout', active: 'users', title: 'User Management', users, roles });
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
@@ -94,10 +121,23 @@ router.get('/admin/users', async (req, res) => {
 // Admin users CRUD and actions
 router.post('/admin/users', async (req, res) => {
   try {
-    const { name, email, role_id, status, password } = req.body;
+    const { name, email, role_id, status, password, role } = req.body;
     const bcrypt = require('bcryptjs');
     const password_hash = password ? await bcrypt.hash(password, 8) : await bcrypt.hash('ChangeMe123!', 8);
-    await db.User.create({ name, email, role_id: parseInt(role_id, 10) || null, status: status || 'active', password_hash });
+    // Resolve role id safely
+    let roleIdFinal = null;
+    if (role_id !== undefined && role_id !== null && String(role_id).trim() !== '') {
+      const rid = parseInt(role_id, 10);
+      if (!Number.isNaN(rid)) {
+        const r = await db.Role.findByPk(rid);
+        if (r) roleIdFinal = r.id;
+      }
+    }
+    if (roleIdFinal === null && role) {
+      const r = await db.Role.findOne({ where: { name: role } });
+      if (r) roleIdFinal = r.id;
+    }
+    await db.User.create({ name, email, role_id: roleIdFinal, status: status || 'active', password_hash });
     res.redirect('/admin/users');
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -107,8 +147,21 @@ router.post('/admin/users', async (req, res) => {
 
 router.post('/admin/users/:id/update', async (req, res) => {
   try {
-    const { name, email, role_id, status } = req.body;
-    await db.User.update({ name, email, role_id: parseInt(role_id, 10) || null, status }, { where: { id: req.params.id } });
+    const { name, email, role_id, status, role } = req.body;
+    // Resolve role id safely
+    let roleIdFinal = null;
+    if (role_id !== undefined && role_id !== null && String(role_id).trim() !== '') {
+      const rid = parseInt(role_id, 10);
+      if (!Number.isNaN(rid)) {
+        const r = await db.Role.findByPk(rid);
+        if (r) roleIdFinal = r.id; else roleIdFinal = null;
+      }
+    }
+    if (roleIdFinal === null && role) {
+      const r = await db.Role.findOne({ where: { name: role } });
+      if (r) roleIdFinal = r.id;
+    }
+    await db.User.update({ name, email, role_id: roleIdFinal, status }, { where: { id: req.params.id } });
     res.redirect('/admin/users');
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -152,8 +205,46 @@ router.post('/admin/users/:id/verify', async (req, res) => {
 
 router.get('/admin/alerts', async (req, res) => {
   try {
-    const alerts = await db.AiAlert.findAll({ include: [{ model: db.Patient, include: [{ model: db.User, attributes: ['name'] }] }], order: [['created_at', 'DESC']], limit: 200 });
-    res.render('admin/alerts', { layout: 'layouts/admin_layout', active: 'alerts', title: 'Alerts', alerts });
+    const { type, severity, status, userId } = req.query;
+
+    const where = {};
+    if (type) where.alert_type = type;
+    if (severity) where.severity = severity;
+    if (status) where.status = status;
+
+    const include = [{
+      model: db.Patient,
+      include: [{ model: db.User, attributes: ['id', 'name'] }]
+    }];
+
+    // If userId provided, constrain by joined Patient.User.id
+    if (userId) {
+      include[0].where = { }; // placeholder to ensure required join if needed
+      include[0].required = true;
+      include[0].include[0].where = { id: Number(userId) };
+      include[0].include[0].required = true;
+    }
+
+    const alerts = await db.AiAlert.findAll({
+      where,
+      include,
+      order: [['created_at', 'DESC']],
+      limit: 200
+    });
+
+    res.render('admin/alerts', {
+      layout: 'layouts/admin_layout',
+      active: 'alerts',
+      title: 'Alerts',
+      alerts,
+      // echo selected filters for the form
+      selected: {
+        type: type || '',
+        severity: severity || '',
+        status: status || '',
+        userId: userId || ''
+      }
+    });
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
@@ -186,10 +277,14 @@ router.get('/admin/patients/:id/details', async (req, res) => {
   try {
     const id = req.params.id;
     const patient = await db.Patient.findOne({ where: { id }, include: [{ model: db.User, attributes: ['name', 'email'] }] });
-    const metrics = await db.HealthMetric.findAll({ where: { patient_id: id }, order: [['recorded_at', 'DESC']], limit: 20 });
-    const alerts = await db.AiAlert.findAll({ where: { patient_id: id }, order: [['created_at', 'DESC']], limit: 10 });
-    const notes = await db.DoctorNote.findAll({ where: { patient_id: id }, order: [['created_at', 'DESC']], limit: 10 });
-    return res.json({ patient, metrics, alerts, notes });
+    const [metrics, alerts, notes, symptoms, emotions] = await Promise.all([
+      db.HealthMetric.findAll({ where: { patient_id: id }, order: [['recorded_at', 'DESC']], limit: 20 }),
+      db.AiAlert.findAll({ where: { patient_id: id }, order: [['created_at', 'DESC']], limit: 10 }),
+      db.DoctorNote.findAll({ where: { patient_id: id }, order: [['created_at', 'DESC']], limit: 10 }),
+      db.Symptom.findAll({ where: { patient_id: id }, order: [['recorded_at', 'DESC']], limit: 10 }),
+      db.Emotion.findAll({ where: { patient_id: id }, order: [['recorded_at', 'DESC']], limit: 10 })
+    ]);
+    return res.json({ patient, metrics, alerts, notes, symptoms, emotions });
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 router.post('/admin/patients', async (req, res) => {
@@ -259,8 +354,41 @@ router.get('/admin/messages', async (req, res) => {
       order: [['created_at', 'DESC']],
       limit: 100
     });
+
     const users = await db.User.findAll({ attributes: ['id', 'name', 'role_id'], order: [['name', 'ASC']] });
-    res.render('admin/messages', { layout: 'layouts/admin_layout', active: 'messages', title: 'Messages', messages, users });
+
+    const uid = parseInt(req.query.uid, 10) || null;
+    let selectedUser = null;
+    let thread = [];
+    if (uid) {
+      selectedUser = await db.User.findByPk(uid, { attributes: ['id', 'name'] });
+      if (selectedUser) {
+        thread = await db.Message.findAll({
+          where: {
+            [db.Sequelize.Op.or]: [
+              { sender_id: uid },
+              { receiver_id: uid }
+            ]
+          },
+          include: [
+            { model: db.User, as: 'receiver', attributes: ['name'] },
+            { model: db.User, as: 'sender', attributes: ['name'] }
+          ],
+          order: [['created_at', 'ASC']],
+          limit: 200
+        });
+      }
+    }
+
+    res.render('admin/messages', {
+      layout: 'layouts/admin_layout',
+      active: 'messages',
+      title: 'Messages',
+      messages,
+      users,
+      selectedUser,
+      thread
+    });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -268,12 +396,50 @@ router.get('/admin/messages', async (req, res) => {
 router.post('/admin/messages/send', async (req, res) => {
   try {
     const { recipientType, recipient, groupRecipient, content } = req.body;
-    const sender_id = req.user?.id || 1; // demo
+    const sender_id = (req.user && req.user.id) ? (parseInt(req.user.id, 10) || null) : null;
+    const text = String(content || '').trim();
+    if (!text) return res.status(400).send('content required');
+
     const isIndividual = recipientType === 'individual';
-    const receiver_id = isIndividual ? parseInt(recipient, 10) || null : null;
-    const message_type = isIndividual ? 'text' : `group:${groupRecipient || 'all'}`;
-    await db.Message.create({ sender_id, receiver_id, content, message_type, created_at: new Date() });
-    res.redirect('/admin/messages');
+    if (isIndividual) {
+      const receiver_id = parseInt(recipient, 10) || null;
+      if (!receiver_id) return res.status(400).send('recipient required');
+      const receiverExists = await db.User.count({ where: { id: receiver_id } });
+      if (!receiverExists) return res.status(400).send('recipient not found');
+      const message_type = 'text';
+      await db.Message.create({ sender_id, receiver_id, content: text, message_type, created_at: new Date() });
+      return respondOk(req, res, '/admin/messages', { ok: true, created: 1 });
+    }
+
+    // Group send: distribute as per-recipient messages while tagging message_type with group
+    const group = (groupRecipient || 'all').toLowerCase();
+    const Op = db.Sequelize.Op;
+    // Resolve role ids dynamically to avoid magic numbers
+    const roles = await db.Role.findAll({ where: { name: { [Op.in]: ['patient', 'caregiver'] } } });
+    const roleIdByName = {};
+    roles.forEach(r => { roleIdByName[String(r.name)] = r.id; });
+
+    let whereClause;
+    if (group === 'patients') {
+      whereClause = { role_id: roleIdByName['patient'] || -1 };
+    } else if (group === 'caregivers') {
+      whereClause = { role_id: roleIdByName['caregiver'] || -1 };
+    } else {
+      const ids = [roleIdByName['patient'], roleIdByName['caregiver']].filter(Boolean);
+      whereClause = { role_id: { [Op.in]: ids.length ? ids : [-1] } };
+    }
+
+    const recipients = await db.User.findAll({ where: whereClause, attributes: ['id'] });
+    const rows = recipients.map(u => ({
+      sender_id,
+      receiver_id: u.id,
+      content: text,
+      message_type: `group:${group}`,
+      created_at: new Date()
+    }));
+    if (!rows.length) return respondOk(req, res, '/admin/messages', { ok: true, created: 0 });
+    await db.Message.bulkCreate(rows);
+    return respondOk(req, res, '/admin/messages', { ok: true, created: rows.length });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -312,7 +478,43 @@ router.get('/admin/reports', async (req, res) => {
     const stepsSeries = labels.map(k => avg((byDay[k]||[]).map(m => m.steps||0)));
     const adminReportCharts = { labels, heartRate: series, sleepQuality: sleepSeries, steps: stepsSeries };
 
-    res.render('admin/reports', { layout: 'layouts/admin_layout', active: 'reports', title: 'Reports', patientReports, summary, adminReportCharts });
+    // Build Patient Comparison from metrics (per patient averages)
+    const byPatient = {};
+    metrics.forEach(m => {
+      const pidKey = String(m.patient_id);
+      if (!byPatient[pidKey]) byPatient[pidKey] = { heart: [], sleepPct: [], steps: [] };
+      if (typeof m.heart_rate === 'number') byPatient[pidKey].heart.push(m.heart_rate);
+      if (typeof m.sleep_hours === 'number') byPatient[pidKey].sleepPct.push((m.sleep_hours || 0) * 100/8);
+      if (typeof m.steps === 'number') byPatient[pidKey].steps.push(m.steps);
+    });
+    const patientIds = Object.keys(byPatient).map(id => Number(id));
+    let idToName = {};
+    if (patientIds.length) {
+      const patients = await db.Patient.findAll({ where: { id: patientIds }, include: [{ model: db.User, attributes: ['name'] }] });
+      patients.forEach(p => { idToName[p.id] = p.User?.name || `PT${p.id}`; });
+    }
+    const patientComparison = patientIds.map(id => ({
+      patient_id: id,
+      name: idToName[id] || `PT${id}`,
+      avg_hr: Math.round(avg(byPatient[String(id)].heart) || 0),
+      avg_sleep: Math.round(avg(byPatient[String(id)].sleepPct) || 0),
+      avg_steps: Math.round(avg(byPatient[String(id)].steps) || 0)
+    })).sort((a,b)=>a.patient_id-b.patient_id);
+
+    res.render('admin/reports', {
+      layout: 'layouts/admin_layout',
+      active: 'reports',
+      title: 'Reports',
+      patientReports,
+      summary,
+      adminReportCharts,
+      patientComparison,
+      // echo back selected filters for the form
+      pid: pid || '',
+      range: range || '',
+      start: start || '',
+      end: end || ''
+    });
   } catch (err) {
     res.status(500).send(err.message);
   }
@@ -320,7 +522,13 @@ router.get('/admin/reports', async (req, res) => {
 router.get('/admin/settings', async (req, res) => {
   try {
     const roles = await db.Role.findAll({ order: [['id', 'ASC']] });
-    res.render('admin/settings', { layout: 'layouts/admin_layout', active: 'settings', title: 'Settings', roles });
+    const chatbotRow = await db.SystemSetting.findOne({ where: { key: 'chatbot_settings' } });
+    const wearableRow = await db.SystemSetting.findOne({ where: { key: 'wearable_settings' } });
+    const securityRow = await db.SystemSetting.findOne({ where: { key: 'security_settings' } });
+    const chatbotSettings = chatbotRow?.value || null;
+    const wearableSettings = wearableRow?.value || null;
+    const securitySettings = securityRow?.value || null;
+    res.render('admin/settings', { layout: 'layouts/admin_layout', active: 'settings', title: 'Settings', roles, chatbotSettings, wearableSettings, securitySettings });
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 router.get('/admin/advanced-analytics', (req, res) => res.render('admin/advanced_analytics', { layout: 'layouts/admin_layout', active: 'advanced', title: 'Advanced Analytics' }));
@@ -335,8 +543,69 @@ router.get('/admin/wearable-management', async (req, res) => {
         { user_id: isNaN(Number(q)) ? -1 : Number(q) }
       ];
     }
+
+    // Connected devices list with query filters
     const devices = await db.WearableDevice.findAll({ where, order: [['updated_at', 'DESC']], limit: 500 });
-    res.render('admin/wearable_management', { layout: 'layouts/admin_layout', active: 'wearable', title: 'Wearable Management', devices, q: q || '', type: type || '' });
+
+    // Load wearable settings (if any)
+    const wearableSettingsRow = await db.SystemSetting.findOne({ where: { key: 'wearable_settings' } });
+    const wearableSettings = wearableSettingsRow?.value || {};
+
+    // Build analytics for Status & Analytics section
+    const Op = db.Sequelize.Op;
+    const now = new Date();
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const deviceTypes = ['google-fit', 'healthkit'];
+    const labelMap = { 'google-fit': 'Google Fit', 'healthkit': 'Apple HealthKit' };
+
+    // Totals
+    const [totalDevices, totalConnectedDevices, connectedRecentCount, disconnectedCount, dataPointsCollected] = await Promise.all([
+      db.WearableDevice.count(),
+      db.WearableDevice.count({ where: { status: 'connected' } }),
+      db.WearableDevice.count({ where: { status: 'connected', last_sync: { [Op.gte]: dayAgo } } }),
+      db.WearableDevice.count({ where: { status: 'disconnected' } }),
+      db.HealthMetric.count({ where: { source: { [Op.in]: deviceTypes } } })
+    ]);
+
+    const deviceUsageLabels = deviceTypes.map((t) => labelMap[t]);
+    const deviceUsageData = [];
+    const syncSuccessLabels = deviceTypes.map((t) => labelMap[t]);
+    const syncSuccessData = [];
+    const deviceSummary = [];
+
+    for (const t of deviceTypes) {
+      // Totals per type
+      const [totalType, connectedType, successType, dataPointsType] = await Promise.all([
+        db.WearableDevice.count({ where: { device_type: t } }),
+        db.WearableDevice.count({ where: { device_type: t, status: 'connected' } }),
+        db.WearableDevice.count({ where: { device_type: t, status: 'connected', last_sync: { [Op.gte]: dayAgo } } }),
+        db.HealthMetric.count({ where: { source: t } })
+      ]);
+      const successPercent = totalType ? Math.round((successType / totalType) * 100) : 0;
+      const errorsType = Math.max(0, totalType - successType);
+      deviceUsageData.push(totalType);
+      syncSuccessData.push(successPercent);
+      deviceSummary.push({ label: labelMap[t], connectedUsers: connectedType, dataPoints: dataPointsType, successPercent, errors: errorsType });
+    }
+
+    const syncSuccessRate = totalDevices ? Math.round((connectedRecentCount / totalDevices) * 100) : 0;
+    const syncErrors = Math.max(0, totalDevices - connectedRecentCount);
+
+    res.render('admin/wearable_management', {
+      layout: 'layouts/admin_layout',
+      active: 'wearable',
+      title: 'Wearable Management',
+      devices,
+      q: q || '',
+      type: type || '',
+      wearableSettings,
+      totals: { connected: totalConnectedDevices, dataPointsCollected, syncSuccessRate, syncErrors },
+      charts: {
+        deviceUsage: { labels: deviceUsageLabels, data: deviceUsageData },
+        syncSuccess: { labels: syncSuccessLabels, data: syncSuccessData }
+      },
+      deviceSummary
+    });
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
@@ -389,7 +658,12 @@ router.get('/admin/wearables/export', async (req, res) => {
 // Admin settings persistence
 router.post('/admin/settings/chatbot', async (req, res) => {
   try {
-    const value = { status: req.body.chatbotStatus, responses: req.body.chatbotResponses, platform: req.body.chatbotPlatform };
+    // Normalize inputs
+    const status = !!(req.body.chatbotStatus === 'on' || req.body.chatbotStatus === 'true' || req.body.chatbotStatus === true);
+    let responses = req.body.chatbotResponses;
+    try { if (typeof responses === 'string') responses = JSON.parse(responses); } catch (_) {}
+    const platform = (req.body.chatbotPlatform || '').toLowerCase() || 'dialogflow';
+    const value = { status, responses, platform };
     const [row, created] = await db.SystemSetting.findOrCreate({ where: { key: 'chatbot_settings' }, defaults: { value } });
     if (!created) await row.update({ value });
     return respondOk(req, res, '/admin/settings');
@@ -398,25 +672,48 @@ router.post('/admin/settings/chatbot', async (req, res) => {
 
 router.post('/admin/settings/wearables', async (req, res) => {
   try {
+    const toBool = (v) => (v === 'on' || v === 'true' || v === true || v === '1');
+    const googleFitEnabled = toBool(req.body.googleFitStatus);
+    const healthKitEnabled = toBool(req.body.healthKitStatus);
+    const freq = (req.body.syncFrequency || '').toLowerCase() || 'daily';
     const value = {
-      googleFit: { enabled: req.body.googleFitStatus, apiKey: req.body.googleFitApiKey },
-      healthKit: { enabled: req.body.healthKitStatus, apiKey: req.body.healthKitApiKey },
-      frequency: req.body.syncFrequency
+      googleFit: {
+        enabled: googleFitEnabled,
+        apiKey: req.body.googleFitApiKey || '',
+        dataTypes: {
+          heartRate: !!req.body.googleFitHeartRate,
+          sleep: !!req.body.googleFitSleep,
+          activity: !!req.body.googleFitActivity
+        }
+      },
+      healthKit: {
+        enabled: healthKitEnabled,
+        apiKey: req.body.healthKitApiKey || '',
+        dataTypes: {
+          heartRate: !!req.body.healthKitHeartRate,
+          sleep: !!req.body.healthKitSleep,
+          activity: !!req.body.healthKitActivity
+        }
+      },
+      frequency: freq
     };
     const [row, created] = await db.SystemSetting.findOrCreate({ where: { key: 'wearable_settings' }, defaults: { value } });
     if (!created) await row.update({ value });
-    return respondOk(req, res, '/admin/settings');
+    const redirectTo = (typeof req.body.redirectTo === 'string' && req.body.redirectTo) ? req.body.redirectTo : '/admin/settings';
+    return respondOk(req, res, redirectTo);
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
 router.post('/admin/settings/security', async (req, res) => {
   try {
-    const value = {
-      twoFactorAuth: req.body.twoFactorAuth,
-      encryptionLevel: req.body.encryptionLevel,
-      sessionTimeout: req.body.sessionTimeout,
-      passwordPolicy: { length: req.body.passwordLength, specialChar: req.body.passwordSpecialChar }
+    const twoFactorAuth = !!(req.body.twoFactorAuth === 'on' || req.body.twoFactorAuth === 'true' || req.body.twoFactorAuth === true);
+    const encryptionLevel = (req.body.encryptionLevel || 'aes-256').toLowerCase();
+    const sessionTimeout = parseInt(req.body.sessionTimeout, 10) || 30;
+    const passwordPolicy = {
+      length: !!(req.body.passwordLength === 'on' || req.body.passwordLength === 'true' || req.body.passwordLength === true),
+      specialChar: !!(req.body.passwordSpecialChar === 'on' || req.body.passwordSpecialChar === 'true' || req.body.passwordSpecialChar === true)
     };
+    const value = { twoFactorAuth, encryptionLevel, sessionTimeout, passwordPolicy };
     const [row, created] = await db.SystemSetting.findOrCreate({ where: { key: 'security_settings' }, defaults: { value } });
     if (!created) await row.update({ value });
     return respondOk(req, res, '/admin/settings');
@@ -453,27 +750,68 @@ router.post('/admin/settings/roles/:id/delete', async (req, res) => {
 // Caregiver panel
 router.get('/caregiver', (req, res) => res.redirect('/caregiver/dashboard'));
 
-async function loadCaregiverData() {
-  const patients = await db.Patient.findAll({ include: [{ model: db.User, attributes: ['name'] }], order: [['id', 'ASC']] });
-  const alerts = await db.AiAlert.findAll({ include: [{ model: db.Patient, include: [{ model: db.User, attributes: ['name'] }] }], order: [['created_at', 'DESC']], limit: 20 });
-  const messages = await db.Message.findAll({
-    include: [
-      { model: db.User, as: 'receiver', attributes: ['name'] },
-      { model: db.User, as: 'sender', attributes: ['name'] }
-    ],
-    order: [['created_at', 'DESC']],
-    limit: 20
-  });
-  const reports = await db.PatientReport.findAll({ order: [['created_at', 'DESC']], limit: 20 });
+// Helper: resolve patient ids assigned to the current caregiver user
+async function getAssignedPatientIds(caregiverUserId) {
+  try {
+    const caregiver = await db.Caregiver.findOne({ where: { user_id: caregiverUserId } });
+    if (!caregiver) return [];
+    const links = await db.PatientCaregiver.findAll({ where: { caregiver_id: caregiver.id } });
+    return links.map(l => l.patient_id);
+  } catch (_) { return []; }
+}
+
+async function loadCaregiverData(patientIds, caregiverUserId) {
+  const wherePatients = Array.isArray(patientIds) && patientIds.length ? { id: patientIds } : undefined;
+  const patients = await db.Patient.findAll({ where: wherePatients, include: [{ model: db.User, attributes: ['name'] }], order: [['id', 'ASC']] });
+
+  // Alerts scoped by patients if provided
+  const alertInclude = [{ model: db.Patient, include: [{ model: db.User, attributes: ['name'] }] }];
+  if (wherePatients) { alertInclude[0].where = wherePatients; alertInclude[0].required = true; }
+  const alerts = await db.AiAlert.findAll({ include: alertInclude, order: [['created_at', 'DESC']], limit: 20 });
+
+  // Messages: include those to/from caregiver user and to/from assigned patients' users
+  const includeMsg = [
+    { model: db.User, as: 'receiver', attributes: ['name'] },
+    { model: db.User, as: 'sender', attributes: ['name'] }
+  ];
+  const whereMsg = {};
+  {
+    const Op = db.Sequelize.Op;
+    const ors = [];
+    if (caregiverUserId) {
+      ors.push({ sender_id: caregiverUserId });
+      ors.push({ receiver_id: caregiverUserId });
+    }
+    if (wherePatients) {
+      const patientUserIds = patients.map(p => p.user_id);
+      if (patientUserIds.length) {
+        ors.push({ sender_id: { [Op.in]: patientUserIds } });
+        ors.push({ receiver_id: { [Op.in]: patientUserIds } });
+      }
+    }
+    if (ors.length) whereMsg[Op.or] = ors;
+  }
+  const messages = await db.Message.findAll({ include: includeMsg, where: whereMsg, order: [['created_at', 'DESC']], limit: 20 });
+
+  const Op = db.Sequelize.Op;
+  const reportsWhere = (Array.isArray(patientIds) && patientIds.length) ? { patient_id: { [Op.in]: patientIds } } : undefined;
+  const reports = await db.PatientReport.findAll({ where: reportsWhere, order: [['created_at', 'DESC']], limit: 20 });
+
   return { patients, alerts, messages, reports };
 }
 
 router.get('/caregiver/dashboard', async (req, res) => {
   try {
-    const { patients, alerts, messages, reports } = await loadCaregiverData();
-    const caregiverId = req.user?.id || 1;
-    // Build 7-day chart aggregates from HealthMetric
+    const caregiverUserId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverUserId);
+    const { patients, alerts, messages, reports } = await loadCaregiverData(patientIds, caregiverUserId);
+    const caregiverId = caregiverUserId;
+
+    // Build 7-day chart aggregates from HealthMetric (scoped by patientIds if available)
     const since = new Date(); since.setDate(since.getDate()-6);
+    const Op = db.Sequelize.Op;
+    const metricWhere = { recorded_at: { [Op.gte]: since } };
+    if (Array.isArray(patientIds) && patientIds.length) metricWhere.patient_id = { [Op.in]: patientIds };
     const metrics = await db.HealthMetric.findAll({
       attributes: [
         [db.Sequelize.fn('date_trunc', 'day', db.Sequelize.col('recorded_at')), 'day'],
@@ -481,17 +819,34 @@ router.get('/caregiver/dashboard', async (req, res) => {
         [db.Sequelize.fn('avg', db.Sequelize.col('sleep_hours')), 'avg_sleep'],
         [db.Sequelize.fn('avg', db.Sequelize.col('steps')), 'avg_steps']
       ],
-      where: { recorded_at: { [db.Sequelize.Op.gte]: since } },
+      where: metricWhere,
       group: [db.Sequelize.fn('date_trunc', 'day', db.Sequelize.col('recorded_at'))],
       order: [[db.Sequelize.fn('date_trunc', 'day', db.Sequelize.col('recorded_at')), 'ASC']]
     });
     const labels = []; const hr = []; const sleep = []; const steps = [];
     for (let i=0;i<7;i++){ const d=new Date(since); d.setDate(since.getDate()+i); const key=d.toISOString().slice(0,10); labels.push(key); const row=metrics.find(m=>new Date(m.get('day')).toISOString().slice(0,10)===key); hr.push(row?Number(row.get('avg_hr'))||0:0); sleep.push(row?Number(row.get('avg_sleep'))||0:0); steps.push(row?Number(row.get('avg_steps'))||0:0); }
     const dashCharts = { labels, heartRate: hr, sleepQuality: sleep, steps };
-    const atRiskPatients = await db.Patient.count({ where: { health_status: 'at-risk' } });
-    const criticalAlerts = await db.AiAlert.count({ where: { severity: 'critical' } });
+
+    // Cards & distribution scoped to caregiver's patients
+    const atRiskPatients = Array.isArray(patientIds) && patientIds.length
+      ? await db.Patient.count({ where: { id: { [Op.in]: patientIds }, health_status: 'at-risk' } })
+      : await db.Patient.count({ where: { health_status: 'at-risk' } });
+
+    const criticalAlerts = Array.isArray(patientIds) && patientIds.length
+      ? await db.AiAlert.count({ where: { patient_id: { [Op.in]: patientIds }, severity: 'critical' } })
+      : await db.AiAlert.count({ where: { severity: 'critical' } });
+
     const unreadMessages = await db.Message.count({ where: { receiver_id: caregiverId } });
-    const pendingRecs = await db.DoctorNote.findAll({ where: { note_type: 'recommendation', status: 'pending' }, include: [{ model: db.Patient, include: [{ model: db.User, attributes: ['name'] }] }], order: [['created_at','DESC']], limit: 10 });
+
+    const pendingRecs = await db.DoctorNote.findAll({
+      where: { note_type: 'recommendation', status: 'pending' },
+      include: [
+        { model: db.Patient, where: (Array.isArray(patientIds)&&patientIds.length)?{ id: { [Op.in]: patientIds } }:undefined, required: (Array.isArray(patientIds)&&patientIds.length) || false, include: [{ model: db.User, attributes: ['name'] }] }
+      ],
+      order: [['created_at','DESC']],
+      limit: 10
+    });
+
     res.render('caregiver/dashboard', { layout: 'layouts/caregiver_layout', active: 'dashboard', patients, alerts, messages, reports, caregiverId, dashCharts, cards: { totalPatients: patients.length, criticalAlerts, atRiskPatients, unreadMessages }, pendingRecs });
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -499,20 +854,33 @@ router.get('/caregiver/dashboard', async (req, res) => {
 // Caregiver dashboard API
 router.get('/caregiver/api/dashboard', async (req, res) => {
   try {
-    const caregiverId = req.user?.id || 1;
-    const totalPatients = await db.Patient.count();
-    const criticalAlerts = await db.AiAlert.count({ where: { severity: 'critical' } });
-    const atRiskPatients = await db.Patient.count({ where: { health_status: 'at-risk' } });
-    const unreadMessages = await db.Message.count({ where: { receiver_id: caregiverId } });
+    const caregiverUserId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverUserId);
+    const Op = db.Sequelize.Op;
+    const patientWhere = (Array.isArray(patientIds) && patientIds.length) ? { id: { [Op.in]: patientIds } } : {};
+
+    const totalPatients = await db.Patient.count({ where: patientWhere });
+    const criticalAlerts = await db.AiAlert.count({ where: (patientWhere.id?{ patient_id: patientWhere.id, severity: 'critical' }:{ severity: 'critical' }) });
+    const atRiskPatients = await db.Patient.count({ where: Object.assign({ health_status: 'at-risk' }, patientWhere) });
+    const unreadMessages = await db.Message.count({ where: { receiver_id: caregiverUserId } });
+
+    // Status distribution
+    const rawStatuses = await db.Patient.findAll({ attributes: ['health_status', [db.Sequelize.fn('count', '*'), 'count']], where: patientWhere, group: ['health_status'] });
+    const statusDistribution = { stable: 0, 'at-risk': 0, critical: 0 };
+    rawStatuses.forEach(r => { statusDistribution[String(r.get('health_status')||'stable')] = Number(r.get('count')); });
+
+    // 7-day metrics (scoped)
     const since = new Date(); since.setDate(since.getDate()-6);
-    const rows = await db.HealthMetric.findAll({ where: { recorded_at: { [db.Sequelize.Op.gte]: since } }, order: [['recorded_at','ASC']], limit: 1000 });
+    const metricWhere = { recorded_at: { [Op.gte]: since } };
+    if (patientWhere.id) metricWhere.patient_id = patientWhere.id;
+    const rows = await db.HealthMetric.findAll({ where: metricWhere, order: [['recorded_at','ASC']], limit: 1000 });
     const labels = Array.from({length:7},(_,i)=>{ const d=new Date(since); d.setDate(d.getDate()+i); return d.toISOString().slice(0,10); });
     const byDay = {}; rows.forEach(m=>{ const k=new Date(m.recorded_at).toISOString().slice(0,10); if(!byDay[k]) byDay[k]=[]; byDay[k].push(m); });
     const avg=a=>a.length?(a.reduce((x,y)=>x+y,0)/a.length):0;
     const heartRate = labels.map(k=>avg((byDay[k]||[]).map(m=>m.heart_rate||0)));
     const sleepQuality = labels.map(k=>avg((byDay[k]||[]).map(m=>m.sleep_hours||0)));
     const steps = labels.map(k=>avg((byDay[k]||[]).map(m=>m.steps||0)));
-    res.json({ labels, heartRate, sleepQuality, steps, cards: { totalPatients, criticalAlerts, atRiskPatients, unreadMessages } });
+    res.json({ labels, heartRate, sleepQuality, steps, statusDistribution, cards: { totalPatients, criticalAlerts, atRiskPatients, unreadMessages } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -522,8 +890,13 @@ router.get('/caregiver/patient-list', async (req, res) => {
       include: [
         { 
           model: db.User, 
-          attributes: ['name', 'date_of_birth'],
+          attributes: ['name', 'date_of_birth', 'email'],
           include: [
+            {
+              model: db.Role,
+              attributes: ['name'],
+              where: { name: 'patient' }
+            },
             { 
               model: db.WearableDevice, 
               attributes: ['device_type', 'status'], 
@@ -535,15 +908,16 @@ router.get('/caregiver/patient-list', async (req, res) => {
       ], 
       order: [['id','ASC']] 
     });
-    const caregiverId = req.user?.id || 1;
+    const caregiverId = await resolveCaregiverUserId(req);
     res.render('caregiver/patients', { layout: 'layouts/caregiver_layout', active: 'patients', patients, caregiverId });
   } catch (err) { res.status(500).send(err.message); }
 });
 
 router.get('/caregiver/under-care', async (req, res) => {
   try {
-    const { patients } = await loadCaregiverData();
-    const caregiverId = req.user?.id || 1;
+    const caregiverId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients } = await loadCaregiverData(patientIds, caregiverId);
     res.render('caregiver/under_care', { layout: 'layouts/caregiver_layout', active: 'under-care', patients, caregiverId });
   } catch (err) { res.status(500).send(err.message); }
 });
@@ -568,28 +942,84 @@ router.get('/caregiver/api/metrics', async (req, res) => {
 
 router.get('/caregiver/messages', async (req, res) => {
   try {
-    const { patients, messages } = await loadCaregiverData();
-    const caregiverId = req.user?.id || 1;
+    const caregiverId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients, messages } = await loadCaregiverData(patientIds, caregiverId);
     res.render('caregiver/messages', { layout: 'layouts/caregiver_layout', active: 'messages', patients, messages, caregiverId });
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// Caregiver: view message thread with a user
+router.get('/caregiver/messages/thread/:userId', async (req, res) => {
+  try {
+    const caregiverId = await resolveCaregiverUserId(req);
+    const otherUserId = parseInt(req.params.userId, 10);
+    const Op = db.Sequelize.Op;
+    const thread = await db.Message.findAll({
+      where: {
+        [Op.or]: [
+          { sender_id: caregiverId, receiver_id: otherUserId },
+          { sender_id: otherUserId, receiver_id: caregiverId }
+        ]
+      },
+      include: [
+        { model: db.User, as: 'receiver', attributes: ['id','name'] },
+        { model: db.User, as: 'sender', attributes: ['id','name'] }
+      ],
+      order: [['created_at', 'ASC']],
+      limit: 200
+    });
+    const otherUser = await db.User.findByPk(otherUserId, { attributes: ['id','name'] });
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients } = await loadCaregiverData(patientIds, caregiverId);
+    res.render('caregiver/thread', { layout: 'layouts/caregiver_layout', active: 'messages', caregiverId, otherUser, thread, patients });
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+// Caregiver: delete a message (own sent or received within thread)
+router.post('/caregiver/messages/:id/delete', async (req, res) => {
+  try {
+    const caregiverId = await resolveCaregiverUserId(req);
+    const id = parseInt(req.params.id, 10);
+    const msg = await db.Message.findByPk(id);
+    if (!msg) return respondOk(req, res, '/caregiver/messages', { ok: false, error: 'not found' });
+
+    // Allowed if caregiver is a participant OR message involves one of caregiver's assigned patients
+    let allowed = (msg.sender_id === caregiverId || msg.receiver_id === caregiverId);
+    if (!allowed) {
+      const patientIds = await getAssignedPatientIds(caregiverId);
+      if (Array.isArray(patientIds) && patientIds.length) {
+        const patients = await db.Patient.findAll({ where: { id: patientIds }, attributes: ['user_id'] });
+        const patientUserIds = patients.map(p => p.user_id);
+        allowed = patientUserIds.includes(msg.sender_id) || patientUserIds.includes(msg.receiver_id);
+      }
+    }
+
+    if (!allowed) return respondOk(req, res, '/caregiver/messages', { ok: false, error: 'forbidden' });
+
+    await db.Message.destroy({ where: { id } });
+    return respondOk(req, res, '/caregiver/messages', { ok: true });
+  } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
+});
+
 router.get('/caregiver/reports', async (req, res) => {
   try {
-    const { patients } = await loadCaregiverData();
+    const caregiverId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients } = await loadCaregiverData(patientIds, caregiverId);
     const { pid } = req.query;
     const where = {};
     if (pid) where.patient_id = pid;
     const reports = await db.PatientReport.findAll({ where, order: [['created_at', 'DESC']], limit: 200 });
-    const caregiverId = req.user?.id || 1;
     res.render('caregiver/reports', { layout: 'layouts/caregiver_layout', active: 'reports', patients, reports, caregiverId, selectedPid: pid || '' });
   } catch (err) { res.status(500).send(err.message); }
 });
 
 router.get('/caregiver/recommendations', async (req, res) => {
   try {
-    const { patients } = await loadCaregiverData();
-    const caregiverId = req.user?.id || 1;
+    const caregiverId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients } = await loadCaregiverData(patientIds, caregiverId);
     const recommendations = await db.DoctorNote.findAll({
       where: { note_type: 'recommendation' },
       include: [
@@ -604,8 +1034,9 @@ router.get('/caregiver/recommendations', async (req, res) => {
 
 router.get('/caregiver/settings', async (req, res) => {
   try {
-    const caregiverId = req.user?.id || 1;
-    const { patients } = await loadCaregiverData();
+    const caregiverId = await resolveCaregiverUserId(req);
+    const patientIds = await getAssignedPatientIds(caregiverId);
+    const { patients } = await loadCaregiverData(patientIds, caregiverId);
     const [settings] = await db.AlertSetting.findAll({ where: { user_id: caregiverId }, limit: 1 });
     res.render('caregiver/settings', { layout: 'layouts/caregiver_layout', active: 'settings', patients, caregiverId, settings });
   } catch (err) { res.status(500).send(err.message); }
@@ -613,8 +1044,34 @@ router.get('/caregiver/settings', async (req, res) => {
 
 router.post('/caregiver/assign', async (req, res) => {
   try {
-    const { caregiver_id, patient_id } = req.body;
-    await db.PatientCaregiver.findOrCreate({ where: { caregiver_id, patient_id }, defaults: { caregiver_id, patient_id } });
+    const { patient_id } = req.body;
+    const caregiverUserId = req.user?.id;
+    if (!caregiverUserId) {
+      if (wantsJson(req)) return res.status(401).json({ error: 'not authenticated' });
+      return res.status(401).send('not authenticated');
+    }
+
+    // Validate caregiver user exists
+    const caregiverUser = await db.User.findByPk(caregiverUserId);
+    if (!caregiverUser) {
+      if (wantsJson(req)) return res.status(400).json({ error: 'caregiver user not found' });
+      return res.status(400).send('caregiver user not found');
+    }
+
+    // Validate patient exists
+    const patient = await db.Patient.findByPk(patient_id);
+    if (!patient) {
+      if (wantsJson(req)) return res.status(404).json({ error: 'patient not found' });
+      return res.status(404).send('patient not found');
+    }
+
+    // Ensure caregiver profile exists for this user
+    let caregiver = await db.Caregiver.findOne({ where: { user_id: caregiverUserId } });
+    if (!caregiver) {
+      caregiver = await db.Caregiver.create({ user_id: caregiverUserId, relationship: 'self' });
+    }
+
+    await db.PatientCaregiver.findOrCreate({ where: { caregiver_id: caregiver.id, patient_id }, defaults: { caregiver_id: caregiver.id, patient_id } });
     return respondOk(req, res, '/caregiver/patient-list');
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -625,22 +1082,28 @@ router.post('/caregiver/assign', async (req, res) => {
 // Caregiver: add patient (simplified demo — creates User + Patient)
 router.post('/caregiver/patients', async (req, res) => {
   try {
-    const { patientName, patientAge } = req.body;
+    const { patientName, patientAge, email, password } = req.body;
     const name = String(patientName || '').trim();
+    const providedEmail = String(email || '').trim();
+    const providedPassword = String(password || '').trim();
+
     if (!name) return res.status(400).json({ error: 'patientName is required' });
-    
+    if (!providedEmail) return res.status(400).json({ error: 'email is required' });
+    if (!providedPassword || providedPassword.length < 6) return res.status(400).json({ error: 'password must be at least 6 characters' });
+
     // Calculate date of birth from age
     const age = parseInt(patientAge) || 0;
     const dateOfBirth = new Date();
     dateOfBirth.setFullYear(dateOfBirth.getFullYear() - age);
-    
-    const email = `patient_${Date.now()}@example.com`;
+
     const bcrypt = require('bcryptjs');
-    const password_hash = await bcrypt.hash('ChangeMe123!', 8);
-    const roleId = 3; // patient role
+    const password_hash = await bcrypt.hash(providedPassword, 8);
+    // Ensure we have the 'patient' role and use its id
+    const [patientRole] = await db.Role.findOrCreate({ where: { name: 'patient' }, defaults: { name: 'patient', description: 'Patient' } });
+    const roleId = patientRole.id;
     const user = await db.User.create({ 
       name, 
-      email, 
+      email: providedEmail, 
       role_id: roleId, 
       status: 'active', 
       password_hash,
@@ -649,6 +1112,10 @@ router.post('/caregiver/patients', async (req, res) => {
     await db.Patient.create({ user_id: user.id });
     return respondOk(req, res, '/caregiver/patient-list');
   } catch (err) {
+    if (err.name === 'SequelizeUniqueConstraintError') {
+      if (wantsJson(req)) return res.status(409).json({ error: 'email already exists' });
+      return res.status(409).send('email already exists');
+    }
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
   }
@@ -657,11 +1124,46 @@ router.post('/caregiver/patients', async (req, res) => {
 // Caregiver: send message
 router.post('/caregiver/messages/send', async (req, res) => {
   try {
-    const { recipient, content } = req.body;
-    const sender_id = req.user?.id || 1;
-    const receiver_id = recipient || null;
-    await db.Message.create({ sender_id, receiver_id, content, message_type: 'text', created_at: new Date() });
-    return respondOk(req, res, '/caregiver/messages');
+    const { recipient, content, sender_id: senderFromBody } = req.body;
+    const text = String(content || '').trim();
+    const receiver_id = parseInt(recipient, 10) || null;
+    let sender_id = (req.user && req.user.id) ? parseInt(req.user.id, 10) : null;
+    if (!sender_id && senderFromBody !== undefined) sender_id = parseInt(senderFromBody, 10) || null;
+
+    if (!sender_id) {
+      // Best-effort fallback to first caregiver user (demo mode)
+      const caregiverRole = await db.Role.findOne({ where: { name: 'caregiver' } });
+      const fallbackUser = caregiverRole
+        ? await db.User.findOne({ where: { role_id: caregiverRole.id }, order: [['id', 'ASC']] })
+        : await db.User.findOne({ order: [['id', 'ASC']] });
+      sender_id = fallbackUser ? fallbackUser.id : null;
+    }
+
+    if (!sender_id) return res.status(401).json({ error: 'sender not resolved; please login' });
+    if (!receiver_id) return res.status(400).json({ error: 'recipient required' });
+    if (!text) return res.status(400).json({ error: 'content required' });
+
+    // Validate FK existence
+    let [senderExists, receiverExists] = await Promise.all([
+      db.User.count({ where: { id: sender_id } }),
+      db.User.count({ where: { id: receiver_id } })
+    ]);
+    if (!senderExists) {
+      // Try to resolve a valid caregiver/user as fallback
+      const caregiverRole = await db.Role.findOne({ where: { name: 'caregiver' } });
+      const fallbackUser = caregiverRole
+        ? await db.User.findOne({ where: { role_id: caregiverRole.id }, order: [['id', 'ASC']] })
+        : await db.User.findOne({ order: [['id', 'ASC']] });
+      if (fallbackUser) {
+        sender_id = fallbackUser.id;
+        senderExists = 1;
+      }
+    }
+    if (!senderExists) return res.status(400).json({ error: 'invalid sender' });
+    if (!receiverExists) return res.status(400).json({ error: 'invalid recipient' });
+
+    await db.Message.create({ sender_id, receiver_id, content: text, message_type: 'text', created_at: new Date() });
+    return respondOk(req, res, '/caregiver/messages', { ok: true });
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
@@ -816,7 +1318,8 @@ router.post('/caregiver/dev/populate', async (req, res) => {
     if (!patient) {
       const bcrypt = require('bcryptjs');
       const password_hash = await bcrypt.hash('ChangeMe123!', 8);
-      const u = await db.User.create({ name: 'Demo Patient', email: `demo_patient_${Date.now()}@local`, password_hash, role_id: 3, status: 'active' });
+      const [patientRole] = await db.Role.findOrCreate({ where: { name: 'patient' }, defaults: { name: 'patient', description: 'Patient' } });
+      const u = await db.User.create({ name: 'Demo Patient', email: `demo_patient_${Date.now()}@local`, password_hash, role_id: patientRole.id, status: 'active' });
       patient = await db.Patient.create({ user_id: u.id, cancer_type: 'Demo', diagnosis_date: new Date(), treatment_plan: 'Demo' });
     }
     // Ensure assigned to caregiver 1 (or current user)

@@ -7,21 +7,31 @@ function createChart(canvasId, config) {
     return null;
 }
 
-// Dashboard: Health Overview Chart
-createChart('healthOverviewChart', {
+// Dashboard: Health Overview Chart (dynamic)
+let healthOverviewChart = null;
+function renderHealthOverviewChart(dist){
+  const data = [
+    (dist && typeof dist.stable === 'number') ? dist.stable : 0,
+    (dist && typeof dist['at-risk'] === 'number') ? dist['at-risk'] : 0,
+    (dist && typeof dist.critical === 'number') ? dist.critical : 0
+  ];
+  if (healthOverviewChart) {
+    healthOverviewChart.data.datasets[0].data = data;
+    return healthOverviewChart.update();
+  }
+  healthOverviewChart = createChart('healthOverviewChart', {
     type: 'pie',
     data: {
-        labels: ['Stable', 'At Risk', 'Critical'],
-        datasets: [{
-            data: [6, 3, 1],
-            backgroundColor: ['#28a745', '#ffc107', '#dc3545']
-        }]
+      labels: ['Stable', 'At Risk', 'Critical'],
+      datasets: [{ data, backgroundColor: ['#28a745', '#ffc107', '#dc3545'] }]
     },
     options: { responsive: true, maintainAspectRatio: false }
-});
+  });
+}
 
 // Patients Under Care: Health Charts
 let underCareCharts = { hr: null, sleep: null, steps: null };
+window.underCareCharts = underCareCharts;
 function renderUnderCareCharts(labels, hr, sleep, steps){
   if (!labels) return;
   underCareCharts.hr = createChart('caregiverHeartRateChart', { type: 'line', data: { labels, datasets: [{ label: 'Heart Rate (bpm)', data: hr, borderColor: '#dc3545', fill: false }] }, options: { responsive: true, maintainAspectRatio: false } });
@@ -58,8 +68,8 @@ function renderUnderCareCharts(labels, hr, sleep, steps){
 
 // Add to existing charts.js
 
-// Dashboard: Health Trend Chart (fetch from API)
-fetch('/caregiver/api/dashboard').then(r=>r.json()).then(({labels,heartRate,sleepQuality,steps})=>{
+// Dashboard: Health Trend + Overview Charts (fetch from API)
+fetch('/caregiver/api/dashboard').then(r=>r.json()).then(({labels,heartRate,sleepQuality,steps,statusDistribution})=>{
   createChart('healthTrendChart', {
     type: 'line',
     data: { labels, datasets: [
@@ -69,4 +79,5 @@ fetch('/caregiver/api/dashboard').then(r=>r.json()).then(({labels,heartRate,slee
     ]},
     options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
   });
+  renderHealthOverviewChart(statusDistribution);
 });

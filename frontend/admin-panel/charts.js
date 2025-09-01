@@ -284,35 +284,35 @@ createChart('sentimentDistributionChart', {
 
 
 
-// Wearable Management Charts
-createChart('syncSuccessChart', {
-    type: 'bar',
-    data: {
-        labels: ['2025-08-01', '2025-08-02', '2025-08-03', '2025-08-04', '2025-08-05', '2025-08-06', '2025-08-07'],
-        datasets: [
-            {
-                label: 'Google Fit Sync Success (%)',
-                data: [95, 92, 98, 90, 96, 93, 97],
-                backgroundColor: '#007bff'
-            },
-            {
-                label: 'HealthKit Sync Success (%)',
-                data: [90, 88, 92, 85, 91, 89, 93],
-                backgroundColor: '#28a745'
-            }
-        ]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-});
+// Wearable Management Charts (prefer dynamic data from data-* attributes)
+(() => {
+  const c = document.getElementById('syncSuccessChart');
+  if (!c) return;
+  let labels = [];
+  let series = [];
+  try { labels = JSON.parse(c.getAttribute('data-labels')||'[]'); } catch(_) { labels = []; }
+  try { series = JSON.parse(c.getAttribute('data-series')||'[]'); } catch(_) { series = []; }
+  if (labels.length && series.length) {
+    createChart('syncSuccessChart', {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Sync Success (%)', data: series, backgroundColor: ['#007bff','#28a745'] }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+})();
 
-createChart('deviceUsageChart', {
-    type: 'pie',
-    data: {
-        labels: ['Google Fit', 'Apple HealthKit', 'Others'],
-        datasets: [{
-            data: [60, 35, 5],
-            backgroundColor: ['#007bff', '#28a745', '#ffc107']
-        }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-});
+(() => {
+  const c = document.getElementById('deviceUsageChart');
+  if (!c) return;
+  let labels = [];
+  let series = [];
+  try { labels = JSON.parse(c.getAttribute('data-labels')||'[]'); } catch(_) { labels = []; }
+  try { series = JSON.parse(c.getAttribute('data-series')||'[]'); } catch(_) { series = []; }
+  if (labels.length && series.length) {
+    createChart('deviceUsageChart', {
+      type: 'pie',
+      data: { labels, datasets: [{ data: series, backgroundColor: ['#007bff', '#28a745', '#ffc107'] }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+})();

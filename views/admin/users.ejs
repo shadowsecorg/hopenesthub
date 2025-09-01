@@ -6,10 +6,9 @@
       <div class="col-md-3">
         <select class="form-select" name="role">
           <option value="">All Roles</option>
-          <option value="patient">Patient</option>
-          <option value="caregiver">Caregiver</option>
-          <option value="doctor">Doctor</option>
-          <option value="admin">Admin</option>
+          <% (roles||[]).forEach(function(r){ %>
+            <option value="<%= r.name %>"><%= r.name %></option>
+          <% }); %>
         </select>
       </div>
       <div class="col-md-3">
@@ -34,7 +33,7 @@
               <td><%= u.id %></td>
               <td><%= u.name || '-' %></td>
               <td><%= u.email %></td>
-              <td><%= u.role_id %></td>
+              <td><%= (u.Role && u.Role.name) || '-' %></td>
               <td><%= u.status %></td>
               <td><%= u.is_verified ? 'Yes' : 'No' %></td>
               <td>
@@ -72,10 +71,9 @@
           <div class="mb-3">
             <label class="form-label">Role</label>
             <select name="role_id" class="form-select">
-              <option value="3">Patient</option>
-              <option value="4">Caregiver</option>
-              <option value="2">Doctor</option>
-              <option value="1">Admin</option>
+              <% (roles||[]).forEach(function(r){ %>
+                <option value="<%= r.id %>"><%= r.name %></option>
+              <% }); %>
             </select>
           </div>
           <div class="mb-3">
@@ -116,10 +114,9 @@
           <div class="mb-3">
             <label class="form-label">Role</label>
             <select name="role_id" id="editRole" class="form-select">
-              <option value="1">Admin</option>
-              <option value="2">Doctor</option>
-              <option value="3">Patient</option>
-              <option value="4">Caregiver</option>
+              <% (roles||[]).forEach(function(r){ %>
+                <option value="<%= r.id %>"><%= r.name %></option>
+              <% }); %>
             </select>
           </div>
           <div class="mb-3">

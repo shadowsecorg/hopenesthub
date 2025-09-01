@@ -1,67 +1,125 @@
 <div class="p-4">
-        <h2>Messages</h2>
-        <div class="card p-3 mb-4">
-          <h5>Send New Message</h5>
-          <form id="sendMessageForm" method="post" action="/admin/messages/send">
-            <div class="row">
-              <div class="col-md-4">
-                <select class="form-select mb-3" id="recipientType" name="recipientType">
-                  <option value="individual">Individual</option>
-                  <option value="group">Group</option>
-                </select>
+  <h2>Messages</h2>
+
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card p-3 mb-3">
+        <h5>New Message</h5>
+        <form id="sendMessageForm" method="post" action="/admin/messages/send">
+          <div class="mb-2">
+            <label class="form-label">Send to</label>
+            <select class="form-select" id="recipientType" name="recipientType">
+              <option value="individual">Individual</option>
+              <option value="group">Group</option>
+            </select>
+          </div>
+          <div class="mb-2" id="individualFields">
+            <label class="form-label">Recipient</label>
+            <select class="form-select" id="recipient" name="recipient">
+              <option value="">Select Recipient</option>
+              <% (users || []).forEach(u => { %>
+                <option value="<%= u.id %>"><%= u.name %> (ID <%= u.id %>)</option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="mb-2" id="groupFields" style="display:none;">
+            <label class="form-label">Group</label>
+            <select class="form-select" id="groupRecipient" name="groupRecipient">
+              <option value="patients">All Patients</option>
+              <option value="caregivers">All Caregivers</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <textarea class="form-control" id="messageContent" name="content" rows="4" placeholder="Type your message here" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Send</button>
+        </form>
+      </div>
+
+      <div class="card p-3">
+        <h5>Conversations</h5>
+        <div class="list-group" style="max-height: 420px; overflow:auto;">
+          <% (users || []).forEach(u => { %>
+            <a class="list-group-item list-group-item-action <%= (selectedUser && selectedUser.id === u.id) ? 'active' : '' %>" href="/admin/messages?uid=<%= u.id %>">
+              <div class="d-flex justify-content-between align-items-center">
+                <span><%= u.name %></span>
+                <small class="text-muted">ID <%= u.id %></small>
               </div>
-              <div class="col-md-4">
-                <select class="form-select mb-3" id="recipient" name="recipient">
-                  <option value="">Select Recipient</option>
-                  <% (users || []).forEach(u => { %>
-                    <option value="<%= u.id %>"><%= u.name %> (ID <%= u.id %>)</option>
-                  <% }) %>
-                </select>
-                <select class="form-select mb-3" id="groupRecipient" name="groupRecipient">
-                  <option value="">Select Group</option>
-                  <option value="patients">All Patients</option>
-                  <option value="caregivers">All Caregivers</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <select class="form-select mb-3" id="messageTemplate">
-                  <option value="">Select Template</option>
-                  <option value="reminder">Medication Reminder</option>
-                  <option value="checkup">Checkup Schedule</option>
-                </select>
-              </div>
-            </div>
-            <div class="mb-3">
-              <textarea class="form-control" id="messageContent" name="content" rows="5" placeholder="Type your message here" required></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Send Message</button>
-          </form>
+            </a>
+          <% }) %>
         </div>
-        <div class="card p-3">
-          <h5>Message History</h5>
+      </div>
+    </div>
+
+    <div class="col-md-8">
+      <div class="card p-3 mb-3">
+        <h5 class="mb-0">
+          <%= selectedUser ? ('Conversation with ' + selectedUser.name) : 'Recent Messages' %>
+        </h5>
+      </div>
+
+      <div class="card p-3" style="min-height:420px;">
+        <% if (selectedUser) { %>
+          <div id="thread" style="max-height: 420px; overflow:auto;">
+            <% (thread || []).forEach(m => { %>
+              <div class="mb-3 <%= (m.message_type && m.message_type.startsWith('group:')) ? 'opacity-75' : '' %>">
+                <div>
+                  <strong><%= m.sender ? m.sender.name : 'System' %></strong>
+                  <small class="text-muted">→ <%= m.receiver ? m.receiver.name : '' %></small>
+                </div>
+                <div><%= m.content %></div>
+                <div><small class="text-muted"><%= new Date(m.created_at).toLocaleString() %></small></div>
+              </div>
+            <% }) %>
+          </div>
+          <hr/>
+          <form method="post" action="/admin/messages/send">
+            <input type="hidden" name="recipientType" value="individual" />
+            <input type="hidden" name="recipient" value="<%= selectedUser.id %>" />
+            <div class="input-group">
+              <input type="text" class="form-control" name="content" placeholder="Type a reply..." required />
+              <button class="btn btn-primary" type="submit">Send</button>
+            </div>
+          </form>
+        <% } else { %>
           <div class="table-responsive">
             <table class="table table-striped">
               <thead>
                 <tr>
+                  <th>Sender</th>
                   <th>Recipient</th>
                   <th>Message</th>
                   <th>Date</th>
-                  <th>Type</th>
                 </tr>
               </thead>
               <tbody>
                 <% (messages || []).forEach(m => { %>
                   <tr>
-                    <td><%= m.receiver ? m.receiver.name : (m.message_type?.startsWith('group:') ? m.message_type.replace('group:','Group: ') : 'Group') %></td>
+                    <td><%= m.sender ? m.sender.name : '' %></td>
+                    <td><%= (m.message_type && m.message_type.startsWith('group:')) ? m.message_type.replace('group:','Group: ') : (m.receiver ? m.receiver.name : '') %></td>
                     <td><%= m.content %></td>
-                    <td><%= m.created_at?.toISOString?.() || '' %></td>
-                    <td><%= (m.receiver_id ? 'Individual' : 'Group') %></td>
+                    <td><%= new Date(m.created_at).toLocaleString() %></td>
                   </tr>
                 <% }) %>
               </tbody>
             </table>
           </div>
-        </div>
+        <% } %>
       </div>
+    </div>
+  </div>
+</div>
 
-
+<script>
+  (function(){
+    var typeEl = document.getElementById('recipientType');
+    if (!typeEl) return;
+    function toggle() {
+      var isGroup = typeEl.value === 'group';
+      document.getElementById('groupFields').style.display = isGroup ? '' : 'none';
+      document.getElementById('individualFields').style.display = isGroup ? 'none' : '';
+    }
+    typeEl.addEventListener('change', toggle);
+    toggle();
+  })();
+</script>

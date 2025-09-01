@@ -138,10 +138,7 @@
         </div>
         <hr>
         <h6>Active Alerts</h6>
-        <ul class="list-group">
-          <li class="list-group-item">High Heart Rate: 2025-08-10 14:30</li>
-          <li class="list-group-item">Poor Sleep: 2025-08-11 03:00</li>
-        </ul>
+        <ul class="list-group" id="dAlerts"></ul>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -154,6 +151,16 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="/frontend/admin-panel/charts.js"></script>
 <script>
+  let hrChart, sleepChart, activityChart;
+  function destroyChartIfExists(id) {
+    try { const inst = Chart.getChart(id); if (inst) inst.destroy(); } catch (e) {}
+  }
+  function statusLabel(s) {
+    const map = { 'stable': 'Stable', 'at-risk': 'At Risk', 'critical': 'Critical' };
+    const key = String(s || '').toLowerCase();
+    return map[key] || 'Stable';
+  }
+
   document.querySelectorAll('.btn-details').forEach(btn => {
     btn.addEventListener('click', async function () {
       const pid = this.getAttribute('data-id');
@@ -162,20 +169,64 @@
         const data = await r.json();
         document.getElementById('dName').textContent = data.patient?.User?.name || '-';
         document.getElementById('dPid').textContent = `PT${data.patient?.id || ''}`;
-        document.getElementById('dStatus').textContent = data.patient?.health_status || '-';
-        const latest = data.metrics && data.metrics[0] || {};
+        document.getElementById('dStatus').textContent = statusLabel(data.patient?.health_status);
+
+        const latest = (data.metrics || [])[0] || {};
         document.getElementById('dHr').textContent = latest.heart_rate ? `${latest.heart_rate} bpm` : '-';
-        document.getElementById('dSleep').textContent = latest.sleep_hours ? `${latest.sleep_hours} h` : '-';
+        const sleepPct = (latest.sleep_hours || latest.sleep_hours === 0)
+          ? Math.round((Number(latest.sleep_hours) || 0) * 100 / 8)
+          : null;
+        document.getElementById('dSleep').textContent = (sleepPct !== null) ? `${sleepPct} %` : '-';
         document.getElementById('dSteps').textContent = latest.steps ? `${latest.steps} steps` : '-';
+
+        // Populate Symptoms & Emotions & Notes history (combined)
         const tbody = document.querySelector('#dSE tbody');
         if (tbody) {
+          const rows = [];
+          (data.symptoms || []).forEach(s => rows.push({ date: s.recorded_at, symptom: s.symptom_type || '-', emotion: '-', notes: s.notes || '-' }));
+          (data.emotions || []).forEach(e => rows.push({ date: e.recorded_at, symptom: '-', emotion: e.emotion_type || '-', notes: e.notes || '-' }));
+          (data.notes || []).forEach(n => rows.push({ date: n.created_at, symptom: '-', emotion: '-', notes: (n.content || '').toString().slice(0, 120) }));
+          rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
           tbody.innerHTML = '';
-          (data.notes || []).slice(0, 5).forEach(n => {
+          rows.slice(0, 10).forEach(row => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${new Date(n.created_at).toISOString().slice(0, 10)}</td><td>${n.note_type || '-'}</td><td>-</td><td>${(n.content || '').slice(0, 80)}</td>`;
+            const d = new Date(row.date);
+            tr.innerHTML = `<td>${d.toISOString().slice(0, 10)}</td><td>${row.symptom}</td><td>${row.emotion}</td><td>${row.notes}</td>`;
             tbody.appendChild(tr);
           });
         }
+
+        // Populate Alerts
+        const alertsUl = document.getElementById('dAlerts');
+        if (alertsUl) {
+          alertsUl.innerHTML = '';
+          (data.alerts || []).forEach(a => {
+            const li = document.createElement('li');
+            const when = a.created_at ? new Date(a.created_at).toISOString().replace('T',' ').slice(0,16) : '';
+            li.className = 'list-group-item';
+            li.textContent = `${a.alert_type || 'Alert'}${a.severity ? ' ('+a.severity+')' : ''}: ${when}`;
+            alertsUl.appendChild(li);
+          });
+          if (!alertsUl.children.length) {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.textContent = 'No active alerts';
+            alertsUl.appendChild(li);
+          }
+        }
+
+        // Charts from metrics
+        const labels = (data.metrics || []).slice().reverse().map(m => new Date(m.recorded_at).toISOString().slice(5,10));
+        const hrSeries = (data.metrics || []).slice().reverse().map(m => m.heart_rate || 0);
+        const sleepSeries = (data.metrics || []).slice().reverse().map(m => Math.round(((Number(m.sleep_hours)||0)*100/8)));
+        const stepsSeries = (data.metrics || []).slice().reverse().map(m => m.steps || 0);
+
+        destroyChartIfExists('heartRateChart');
+        hrChart = new Chart(document.getElementById('heartRateChart'), { type: 'line', data: { labels, datasets: [{ label: 'Heart Rate (bpm)', data: hrSeries, borderColor: '#dc3545', fill: false }] }, options: { responsive: true, maintainAspectRatio: false } });
+        destroyChartIfExists('sleepQualityChart');
+        sleepChart = new Chart(document.getElementById('sleepQualityChart'), { type: 'bar', data: { labels, datasets: [{ label: 'Sleep Quality (%)', data: sleepSeries, backgroundColor: '#007bff' }] }, options: { responsive: true, maintainAspectRatio: false } });
+        destroyChartIfExists('activityChart');
+        activityChart = new Chart(document.getElementById('activityChart'), { type: 'line', data: { labels, datasets: [{ label: 'Steps', data: stepsSeries, borderColor: '#28a745', fill: false }] }, options: { responsive: true, maintainAspectRatio: false } });
       } catch (e) { }
     });
   });

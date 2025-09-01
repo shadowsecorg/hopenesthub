@@ -19,16 +19,22 @@
 document.getElementById('addPatientForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     const patientName = document.getElementById('patientName').value;
+    const patientEmail = document.getElementById('patientEmail') ? document.getElementById('patientEmail').value : '';
+    const patientPassword = document.getElementById('patientPassword') ? document.getElementById('patientPassword').value : '';
     const patientAge = document.getElementById('patientAge').value;
-    if (!patientName || !patientAge) {
+    if (!patientName || !patientAge || !patientEmail || !patientPassword) {
         alert('All fields are required.');
+        return;
+    }
+    if (patientPassword.length < 6) {
+        alert('Password must be at least 6 characters.');
         return;
     }
     try {
         await fetch('/caregiver/patients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ patientName, patientAge })
+            body: JSON.stringify({ patientName, patientAge, email: patientEmail, password: patientPassword })
         });
         document.getElementById('addPatientForm').reset();
         bootstrap.Modal.getInstance(document.getElementById('addPatientModal')).hide();
@@ -45,7 +51,7 @@ async function assignPatient(patientId) {
         const response = await fetch('/caregiver/assign', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caregiver_id: window.caregiverId || 1, patient_id: patientId })
+            body: JSON.stringify({ patient_id: patientId })
         });
         
         if (response.ok) {
@@ -98,6 +104,8 @@ if (underCareFilter) {
                 window.underCareCharts.hr.data.labels = labels; window.underCareCharts.hr.data.datasets[0].data = hr; window.underCareCharts.hr.update();
                 window.underCareCharts.sleep.data.labels = labels; window.underCareCharts.sleep.data.datasets[0].data = sleep; window.underCareCharts.sleep.update();
                 window.underCareCharts.steps.data.labels = labels; window.underCareCharts.steps.data.datasets[0].data = steps; window.underCareCharts.steps.update();
+            } else if (typeof renderUnderCareCharts === 'function') {
+                renderUnderCareCharts(labels, hr, sleep, steps);
             }
             // Also update summary
             const avg = arr => (arr.reduce((a,b)=>a+b,0) / (arr.length||1));
@@ -106,6 +114,13 @@ if (underCareFilter) {
             document.getElementById('avgActivity').textContent = `${avg(steps).toFixed(0)} steps`;
         }).catch(()=>updateHealthCharts());
     });
+
+    // Auto-select first patient and trigger initial charts load if none selected
+    if (!underCareFilter.value && underCareFilter.options && underCareFilter.options.length > 1) {
+        underCareFilter.selectedIndex = 1;
+        const event = new Event('change');
+        underCareFilter.dispatchEvent(event);
+    }
 }
 
 // Send Message
@@ -121,7 +136,7 @@ document.getElementById('sendMessageForm').addEventListener('submit', async func
         await fetch('/caregiver/messages/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ recipient, content })
+            body: JSON.stringify({ recipient, content, sender_id: (typeof window.caregiverId !== 'undefined' ? window.caregiverId : undefined) })
         });
         document.getElementById('sendMessageForm').reset();
         bootstrap.Modal.getInstance(document.getElementById('sendMessageModal')).hide();

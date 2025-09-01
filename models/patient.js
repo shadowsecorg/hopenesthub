@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
       diagnosis_date: { type: DataTypes.DATEONLY },
       treatment_plan: { type: DataTypes.TEXT },
       assigned_doctor_id: { type: DataTypes.INTEGER },
-      health_status: { type: DataTypes.STRING(20) },
+      health_status: { type: DataTypes.STRING(20), defaultValue: 'stable' },
       created_at: { type: DataTypes.DATE },
       updated_at: { type: DataTypes.DATE }
     },
