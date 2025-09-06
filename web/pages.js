@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../models');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { loadUserFromToken, requireRolePage } = require('../middleware/auth');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 // Helper: decide if client expects JSON
 function wantsJson(req) {
@@ -15,6 +20,103 @@ function respondOk(req, res, fallbackRedirect, payload) {
   }
   return res.redirect(fallbackRedirect);
 }
+
+// Attach lightweight auth loader to make req.user available when a token cookie exists
+router.use(loadUserFromToken);
+
+async function ensureDefaultAdmin() {
+  const [adminRole] = await db.Role.findOrCreate({ where: { name: 'admin' }, defaults: { name: 'admin', description: 'Administrator' } });
+  const email = process.env.DEFAULT_ADMIN_EMAIL || 'admin@hopenest.local';
+  const existing = await db.User.findOne({ where: { email } });
+  if (existing) return existing;
+  const password = process.env.DEFAULT_ADMIN_PASSWORD || 'ChangeMe123!';
+  const password_hash = await bcrypt.hash(password, 8);
+  const user = await db.User.create({ name: 'Admin User', email, password_hash, role_id: adminRole.id, status: 'active' });
+  return user;
+}
+
+function issueToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+}
+
+// Auth pages: Admin Login
+router.get('/admin/login', async (req, res) => {
+  try { await ensureDefaultAdmin(); } catch (_) {}
+  res.render('auth/login', { layout: false, panel: 'admin', action: '/admin/login', title: 'Admin Login' });
+});
+
+router.post('/admin/login', async (req, res) => {
+  try {
+    await ensureDefaultAdmin();
+    const { email, password } = req.body;
+    const user = await db.User.findOne({ where: { email } });
+    if (!user) return res.status(401).send('Invalid credentials');
+    const ok = await bcrypt.compare(password || '', user.password_hash || '');
+    if (!ok) return res.status(401).send('Invalid credentials');
+    const token = issueToken({ id: user.id, email: user.email });
+    const secure = Boolean(process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production');
+    res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure, maxAge: 8 * 3600 * 1000 });
+    return res.redirect('/admin');
+  } catch (err) { return res.status(500).send(err.message); }
+});
+
+// Auth pages: Caregiver Login & Register
+router.get('/caregiver/login', (req, res) => {
+  res.render('auth/login', { layout: false, panel: 'caregiver', action: '/caregiver/login', title: 'Caregiver Login' });
+});
+
+router.post('/caregiver/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await db.User.findOne({ where: { email } });
+    if (!user) return res.status(401).send('Invalid credentials');
+    const ok = await bcrypt.compare(password || '', user.password_hash || '');
+    if (!ok) return res.status(401).send('Invalid credentials');
+    const token = issueToken({ id: user.id, email: user.email });
+    const secure = Boolean(process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production');
+    res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure, maxAge: 8 * 3600 * 1000 });
+    return res.redirect('/caregiver/dashboard');
+  } catch (err) { return res.status(500).send(err.message); }
+});
+
+router.get('/caregiver/register', (req, res) => {
+  res.render('auth/register', { layout: false, panel: 'caregiver', action: '/caregiver/register', title: 'Caregiver Register' });
+});
+
+router.post('/caregiver/register', async (req, res) => {
+  try {
+    const { name, email, password, phone } = req.body;
+    if (!email || !password) return res.status(400).send('email and password required');
+    const exists = await db.User.findOne({ where: { email } });
+    if (exists) return res.status(409).send('Email already registered');
+    const [caregiverRole] = await db.Role.findOrCreate({ where: { name: 'caregiver' }, defaults: { name: 'caregiver', description: 'Caregiver' } });
+    const password_hash = await bcrypt.hash(password, 8);
+    const user = await db.User.create({ name: name || 'Caregiver', email, phone: phone || null, role_id: caregiverRole.id, status: 'active', password_hash });
+    await db.Caregiver.findOrCreate({ where: { user_id: user.id }, defaults: { user_id: user.id, relationship: 'family' } });
+    const token = issueToken({ id: user.id, email: user.email });
+    const secure = Boolean(process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production');
+    res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure, maxAge: 8 * 3600 * 1000 });
+    return res.redirect('/caregiver/dashboard');
+  } catch (err) { return res.status(500).send(err.message); }
+});
+
+router.post('/logout', (req, res) => {
+  try {
+    const secure = Boolean(process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production');
+    res.cookie('token', '', { httpOnly: true, sameSite: 'lax', secure, expires: new Date(0) });
+    const redirectTo = (req.query && req.query.to === 'admin') ? '/admin/login' : '/caregiver/login';
+    return res.redirect(redirectTo);
+  } catch (err) { return res.status(500).send(err.message); }
+});
+
+router.get('/logout', (req, res) => {
+  try {
+    const secure = Boolean(process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production');
+    res.cookie('token', '', { httpOnly: true, sameSite: 'lax', secure, expires: new Date(0) });
+    const redirectTo = (req.query && req.query.to === 'admin') ? '/admin/login' : '/caregiver/login';
+    return res.redirect(redirectTo);
+  } catch (err) { return res.status(500).send(err.message); }
+});
 
 // Resolve a valid caregiver user id even if req.user is missing
 async function resolveCaregiverUserId(req) {
@@ -35,7 +137,7 @@ async function resolveCaregiverUserId(req) {
 }
 
 // Admin panel
-router.get(['/admin', '/admin/index'], async (req, res) => {
+router.get(['/admin', '/admin/index'], requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const totalUsers = await db.User.count();
     const totalPatients = await db.Patient.count();
@@ -85,7 +187,7 @@ router.get(['/admin', '/admin/index'], async (req, res) => {
   }
 });
 
-router.get('/admin/users', async (req, res) => {
+router.get('/admin/users', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { q, role, status } = req.query;
     const where = {};
@@ -119,7 +221,7 @@ router.get('/admin/users', async (req, res) => {
 });
 
 // Admin users CRUD and actions
-router.post('/admin/users', async (req, res) => {
+router.post('/admin/users', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name, email, role_id, status, password, role } = req.body;
     const bcrypt = require('bcryptjs');
@@ -145,7 +247,7 @@ router.post('/admin/users', async (req, res) => {
   }
 });
 
-router.post('/admin/users/:id/update', async (req, res) => {
+router.post('/admin/users/:id/update', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name, email, role_id, status, role } = req.body;
     // Resolve role id safely
@@ -169,7 +271,7 @@ router.post('/admin/users/:id/update', async (req, res) => {
   }
 });
 
-router.post('/admin/users/:id/delete', async (req, res) => {
+router.post('/admin/users/:id/delete', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.User.destroy({ where: { id: req.params.id } });
     res.redirect('/admin/users');
@@ -179,7 +281,7 @@ router.post('/admin/users/:id/delete', async (req, res) => {
   }
 });
 
-router.post('/admin/users/:id/reset-password', async (req, res) => {
+router.post('/admin/users/:id/reset-password', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
     const { password } = req.body;
@@ -193,7 +295,7 @@ router.post('/admin/users/:id/reset-password', async (req, res) => {
   }
 });
 
-router.post('/admin/users/:id/verify', async (req, res) => {
+router.post('/admin/users/:id/verify', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.User.update({ is_verified: true }, { where: { id: req.params.id } });
     res.redirect('/admin/users');
@@ -203,7 +305,7 @@ router.post('/admin/users/:id/verify', async (req, res) => {
   }
 });
 
-router.get('/admin/alerts', async (req, res) => {
+router.get('/admin/alerts', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { type, severity, status, userId } = req.query;
 
@@ -251,7 +353,7 @@ router.get('/admin/alerts', async (req, res) => {
   }
 });
 
-router.get('/admin/patients', async (req, res) => {
+router.get('/admin/patients', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { q, pid, status } = req.query;
     const where = {};
@@ -273,7 +375,7 @@ router.get('/admin/patients', async (req, res) => {
   }
 });
 // Admin: patient details API
-router.get('/admin/patients/:id/details', async (req, res) => {
+router.get('/admin/patients/:id/details', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const id = req.params.id;
     const patient = await db.Patient.findOne({ where: { id }, include: [{ model: db.User, attributes: ['name', 'email'] }] });
@@ -287,7 +389,7 @@ router.get('/admin/patients/:id/details', async (req, res) => {
     return res.json({ patient, metrics, alerts, notes, symptoms, emotions });
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
-router.post('/admin/patients', async (req, res) => {
+router.post('/admin/patients', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { user_id, cancer_type, diagnosis_date, assigned_doctor_id } = req.body;
     console.log(req.body);
@@ -299,7 +401,7 @@ router.post('/admin/patients', async (req, res) => {
   }
 });
 
-router.post('/admin/patients/:id/delete', async (req, res) => {
+router.post('/admin/patients/:id/delete', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.Patient.destroy({ where: { id: req.params.id } });
     res.redirect('/admin/patients');
@@ -308,7 +410,7 @@ router.post('/admin/patients/:id/delete', async (req, res) => {
   }
 });
 
-router.post('/admin/alerts/:id/confirm', async (req, res) => {
+router.post('/admin/alerts/:id/confirm', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'confirmed' }, { where: { id: req.params.id } });
     res.redirect('/admin/alerts');
@@ -317,7 +419,7 @@ router.post('/admin/alerts/:id/confirm', async (req, res) => {
   }
 });
 
-router.post('/admin/alerts/:id/reject', async (req, res) => {
+router.post('/admin/alerts/:id/reject', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'rejected' }, { where: { id: req.params.id } });
     res.redirect('/admin/alerts');
@@ -326,7 +428,7 @@ router.post('/admin/alerts/:id/reject', async (req, res) => {
   }
 });
 
-router.post('/admin/alert-settings', async (req, res) => {
+router.post('/admin/alert-settings', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { user_id, heart_rate_threshold, sleep_threshold, activity_threshold } = req.body;
     const targetUserId = parseInt(user_id, 10) || 1;
@@ -344,7 +446,7 @@ router.post('/admin/alert-settings', async (req, res) => {
 });
 
 // Stubs for other admin pages to render static shell, can be expanded
-router.get('/admin/messages', async (req, res) => {
+router.get('/admin/messages', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const messages = await db.Message.findAll({
       include: [
@@ -393,7 +495,7 @@ router.get('/admin/messages', async (req, res) => {
     res.status(500).send(err.message);
   }
 });
-router.post('/admin/messages/send', async (req, res) => {
+router.post('/admin/messages/send', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { recipientType, recipient, groupRecipient, content } = req.body;
     const sender_id = (req.user && req.user.id) ? (parseInt(req.user.id, 10) || null) : null;
@@ -444,7 +546,7 @@ router.post('/admin/messages/send', async (req, res) => {
     res.status(500).send(err.message);
   }
 });
-router.get('/admin/reports', async (req, res) => {
+router.get('/admin/reports', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { pid, start, end, range } = req.query;
     const where = {};
@@ -519,7 +621,7 @@ router.get('/admin/reports', async (req, res) => {
     res.status(500).send(err.message);
   }
 });
-router.get('/admin/settings', async (req, res) => {
+router.get('/admin/settings', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const roles = await db.Role.findAll({ order: [['id', 'ASC']] });
     const chatbotRow = await db.SystemSetting.findOne({ where: { key: 'chatbot_settings' } });
@@ -531,8 +633,8 @@ router.get('/admin/settings', async (req, res) => {
     res.render('admin/settings', { layout: 'layouts/admin_layout', active: 'settings', title: 'Settings', roles, chatbotSettings, wearableSettings, securitySettings });
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
-router.get('/admin/advanced-analytics', (req, res) => res.render('admin/advanced_analytics', { layout: 'layouts/admin_layout', active: 'advanced', title: 'Advanced Analytics' }));
-router.get('/admin/wearable-management', async (req, res) => {
+router.get('/admin/advanced-analytics', requireRolePage('admin', '/admin/login'), (req, res) => res.render('admin/advanced_analytics', { layout: 'layouts/admin_layout', active: 'advanced', title: 'Advanced Analytics' }));
+router.get('/admin/wearable-management', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { q, type } = req.query;
     const where = {};
@@ -610,7 +712,7 @@ router.get('/admin/wearable-management', async (req, res) => {
 });
 
 // Wearable devices CRUD
-router.post('/admin/wearables/connect', async (req, res) => {
+router.post('/admin/wearables/connect', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { userId, deviceType, deviceId } = req.body;
     await db.WearableDevice.create({ user_id: userId, device_type: deviceType, device_id: deviceId, status: 'connected', last_sync: null });
@@ -618,14 +720,14 @@ router.post('/admin/wearables/connect', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/wearables/:deviceId/disconnect', async (req, res) => {
+router.post('/admin/wearables/:deviceId/disconnect', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.WearableDevice.update({ status: 'disconnected' }, { where: { device_id: req.params.deviceId } });
     return respondOk(req, res, '/admin/wearable-management');
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/wearables/:deviceId/reconnect', async (req, res) => {
+router.post('/admin/wearables/:deviceId/reconnect', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.WearableDevice.update({ status: 'connected', last_sync: new Date() }, { where: { device_id: req.params.deviceId } });
     return respondOk(req, res, '/admin/wearable-management');
@@ -633,7 +735,7 @@ router.post('/admin/wearables/:deviceId/reconnect', async (req, res) => {
 });
 
 // Export wearable devices (CSV)
-router.get('/admin/wearables/export', async (req, res) => {
+router.get('/admin/wearables/export', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { q, type } = req.query;
     const where = {};
@@ -656,7 +758,7 @@ router.get('/admin/wearables/export', async (req, res) => {
 });
 
 // Admin settings persistence
-router.post('/admin/settings/chatbot', async (req, res) => {
+router.post('/admin/settings/chatbot', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     // Normalize inputs
     const status = !!(req.body.chatbotStatus === 'on' || req.body.chatbotStatus === 'true' || req.body.chatbotStatus === true);
@@ -670,7 +772,7 @@ router.post('/admin/settings/chatbot', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/settings/wearables', async (req, res) => {
+router.post('/admin/settings/wearables', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const toBool = (v) => (v === 'on' || v === 'true' || v === true || v === '1');
     const googleFitEnabled = toBool(req.body.googleFitStatus);
@@ -704,7 +806,7 @@ router.post('/admin/settings/wearables', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/settings/security', async (req, res) => {
+router.post('/admin/settings/security', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const twoFactorAuth = !!(req.body.twoFactorAuth === 'on' || req.body.twoFactorAuth === 'true' || req.body.twoFactorAuth === true);
     const encryptionLevel = (req.body.encryptionLevel || 'aes-256').toLowerCase();
@@ -721,7 +823,7 @@ router.post('/admin/settings/security', async (req, res) => {
 });
 
 // Roles & Permissions CRUD
-router.post('/admin/settings/roles', async (req, res) => {
+router.post('/admin/settings/roles', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).send('name required');
@@ -730,7 +832,7 @@ router.post('/admin/settings/roles', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/settings/roles/:id/update', async (req, res) => {
+router.post('/admin/settings/roles/:id/update', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name, permissions } = req.body;
     let parsedPerms = {};
@@ -740,7 +842,7 @@ router.post('/admin/settings/roles/:id/update', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.post('/admin/settings/roles/:id/delete', async (req, res) => {
+router.post('/admin/settings/roles/:id/delete', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     await db.Role.destroy({ where: { id: req.params.id } });
     return respondOk(req, res, '/admin/settings');
@@ -748,7 +850,7 @@ router.post('/admin/settings/roles/:id/delete', async (req, res) => {
 });
 
 // Caregiver panel
-router.get('/caregiver', (req, res) => res.redirect('/caregiver/dashboard'));
+router.get('/caregiver', requireRolePage('caregiver', '/caregiver/login'), (req, res) => res.redirect('/caregiver/dashboard'));
 
 // Helper: resolve patient ids assigned to the current caregiver user
 async function getAssignedPatientIds(caregiverUserId) {
@@ -800,7 +902,7 @@ async function loadCaregiverData(patientIds, caregiverUserId) {
   return { patients, alerts, messages, reports };
 }
 
-router.get('/caregiver/dashboard', async (req, res) => {
+router.get('/caregiver/dashboard', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverUserId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverUserId);
@@ -852,7 +954,7 @@ router.get('/caregiver/dashboard', async (req, res) => {
 });
 
 // Caregiver dashboard API
-router.get('/caregiver/api/dashboard', async (req, res) => {
+router.get('/caregiver/api/dashboard', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverUserId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverUserId);
@@ -884,19 +986,19 @@ router.get('/caregiver/api/dashboard', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.get('/caregiver/patient-list', async (req, res) => {
+router.get('/caregiver/patient-list', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
+    const caregiverId = await resolveCaregiverUserId(req);
+    const assignedIds = await getAssignedPatientIds(caregiverId);
+    const Op = db.Sequelize.Op;
+    const wherePatients = (Array.isArray(assignedIds) && assignedIds.length) ? { id: { [Op.in]: assignedIds } } : { id: -1 };
     const patients = await db.Patient.findAll({ 
+      where: wherePatients,
       include: [
         { 
           model: db.User, 
           attributes: ['name', 'date_of_birth', 'email'],
           include: [
-            {
-              model: db.Role,
-              attributes: ['name'],
-              where: { name: 'patient' }
-            },
             { 
               model: db.WearableDevice, 
               attributes: ['device_type', 'status'], 
@@ -908,12 +1010,11 @@ router.get('/caregiver/patient-list', async (req, res) => {
       ], 
       order: [['id','ASC']] 
     });
-    const caregiverId = await resolveCaregiverUserId(req);
     res.render('caregiver/patients', { layout: 'layouts/caregiver_layout', active: 'patients', patients, caregiverId });
   } catch (err) { res.status(500).send(err.message); }
 });
 
-router.get('/caregiver/under-care', async (req, res) => {
+router.get('/caregiver/under-care', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverId);
@@ -923,7 +1024,7 @@ router.get('/caregiver/under-care', async (req, res) => {
 });
 
 // API to get metrics for a patient for charts
-router.get('/caregiver/api/metrics', async (req, res) => {
+router.get('/caregiver/api/metrics', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const { patientId, days } = req.query;
     if (!patientId) return res.status(400).json({ error: 'patientId required' });
@@ -940,7 +1041,7 @@ router.get('/caregiver/api/metrics', async (req, res) => {
   }
 });
 
-router.get('/caregiver/messages', async (req, res) => {
+router.get('/caregiver/messages', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverId);
@@ -950,7 +1051,7 @@ router.get('/caregiver/messages', async (req, res) => {
 });
 
 // Caregiver: view message thread with a user
-router.get('/caregiver/messages/thread/:userId', async (req, res) => {
+router.get('/caregiver/messages/thread/:userId', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const otherUserId = parseInt(req.params.userId, 10);
@@ -977,7 +1078,7 @@ router.get('/caregiver/messages/thread/:userId', async (req, res) => {
 });
 
 // Caregiver: delete a message (own sent or received within thread)
-router.post('/caregiver/messages/:id/delete', async (req, res) => {
+router.post('/caregiver/messages/:id/delete', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const id = parseInt(req.params.id, 10);
@@ -1002,7 +1103,7 @@ router.post('/caregiver/messages/:id/delete', async (req, res) => {
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-router.get('/caregiver/reports', async (req, res) => {
+router.get('/caregiver/reports', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverId);
@@ -1015,7 +1116,7 @@ router.get('/caregiver/reports', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-router.get('/caregiver/recommendations', async (req, res) => {
+router.get('/caregiver/recommendations', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverId);
@@ -1032,7 +1133,7 @@ router.get('/caregiver/recommendations', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-router.get('/caregiver/settings', async (req, res) => {
+router.get('/caregiver/settings', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
     const patientIds = await getAssignedPatientIds(caregiverId);
@@ -1042,7 +1143,7 @@ router.get('/caregiver/settings', async (req, res) => {
   } catch (err) { res.status(500).send(err.message); }
 });
 
-router.post('/caregiver/assign', async (req, res) => {
+router.post('/caregiver/assign', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const { patient_id } = req.body;
     const caregiverUserId = req.user?.id;
@@ -1080,7 +1181,7 @@ router.post('/caregiver/assign', async (req, res) => {
 });
 
 // Caregiver: add patient (simplified demo — creates User + Patient)
-router.post('/caregiver/patients', async (req, res) => {
+router.post('/caregiver/patients', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const { patientName, patientAge, email, password } = req.body;
     const name = String(patientName || '').trim();
@@ -1122,7 +1223,7 @@ router.post('/caregiver/patients', async (req, res) => {
 });
 
 // Caregiver: send message
-router.post('/caregiver/messages/send', async (req, res) => {
+router.post('/caregiver/messages/send', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const { recipient, content, sender_id: senderFromBody } = req.body;
     const text = String(content || '').trim();
@@ -1171,7 +1272,7 @@ router.post('/caregiver/messages/send', async (req, res) => {
 });
 
 // Caregiver: acknowledge/dismiss alerts
-router.post('/caregiver/alerts/:id/ack', async (req, res) => {
+router.post('/caregiver/alerts/:id/ack', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'acknowledged' }, { where: { id: req.params.id } });
     return respondOk(req, res, '/caregiver/dashboard');
@@ -1181,7 +1282,7 @@ router.post('/caregiver/alerts/:id/ack', async (req, res) => {
   }
 });
 
-router.post('/caregiver/alerts/:id/dismiss', async (req, res) => {
+router.post('/caregiver/alerts/:id/dismiss', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     await db.AiAlert.update({ status: 'dismissed' }, { where: { id: req.params.id } });
     return respondOk(req, res, '/caregiver/dashboard');
@@ -1192,7 +1293,7 @@ router.post('/caregiver/alerts/:id/dismiss', async (req, res) => {
 });
 
 // Caregiver: export reports (CSV minimal)
-router.get('/caregiver/reports/export', async (req, res) => {
+router.get('/caregiver/reports/export', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const { format, pid } = req.query;
     const where = {};
