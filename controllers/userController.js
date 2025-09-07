@@ -5,13 +5,26 @@ const db = require('../models');
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
 
 async function register(req, res) {
-  const { email, password, name, phone, role_id } = req.body;
+  const { email, password, name, phone, role_id, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
   try {
     const exists = await db.User.findOne({ where: { email } });
     if (exists) return res.status(409).json({ error: 'Email already registered' });
     const password_hash = await bcrypt.hash(password, 8);
-    const user = await db.User.create({ email, password_hash, name, phone, role_id });
+    // Resolve role id if 'role' string provided
+    let finalRoleId = role_id || null;
+    if (!finalRoleId && role) {
+      const r = await db.Role.findOne({ where: { name: String(role).toLowerCase() } });
+      if (r) finalRoleId = r.id;
+    }
+    const user = await db.User.create({ email, password_hash, name, phone, role_id: finalRoleId });
+    // Auto-create Patient profile if role is patient
+    if (finalRoleId) {
+      const r = await db.Role.findByPk(finalRoleId);
+      if (r && String(r.name).toLowerCase() === 'patient') {
+        await db.Patient.findOrCreate({ where: { user_id: user.id }, defaults: { user_id: user.id } });
+      }
+    }
     res.status(201).json({ id: user.id, email: user.email });
   } catch (err) {
     res.status(500).json({ error: err.message });

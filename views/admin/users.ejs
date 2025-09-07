@@ -26,7 +26,7 @@
   <div class="card p-3">
     <div class="table-responsive">
       <table class="table table-striped">
-        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Verified</th><th>Actions</th></tr></thead>
+        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Patient ID</th><th>Status</th><th>Verified</th><th>Actions</th></tr></thead>
         <tbody>
           <% users.forEach(u => { %>
             <tr>
@@ -34,10 +34,16 @@
               <td><%= u.name || '-' %></td>
               <td><%= u.email %></td>
               <td><%= (u.Role && u.Role.name) || '-' %></td>
+              <td><%= (u.Patient && u.Patient.id) ? ('PT' + u.Patient.id) : '-' %></td>
               <td><%= u.status %></td>
               <td><%= u.is_verified ? 'Yes' : 'No' %></td>
               <td>
                 <button type="button" class="btn btn-sm btn-warning btn-edit" data-id="<%= u.id %>" data-name="<%= u.name || '' %>" data-email="<%= u.email %>" data-role="<%= u.role_id || '' %>" data-status="<%= u.status %>" data-bs-toggle="modal" data-bs-target="#editUserModal">Edit</button>
+                <% if ((u.Role && u.Role.name === 'patient') && !u.Patient) { %>
+                  <form class="d-inline" method="post" action="/admin/users/<%= u.id %>/create-patient">
+                    <button class="btn btn-sm btn-outline-primary">Create Patient</button>
+                  </form>
+                <% } %>
                 <form class="d-inline" method="post" action="/admin/users/<%= u.id %>/verify"><button class="btn btn-sm btn-success" <%= u.is_verified? 'disabled' : '' %>>Verify</button></form>
                 <form class="d-inline" method="post" action="/admin/users/<%= u.id %>/reset-password"><button class="btn btn-sm btn-info">Reset Password</button></form>
                 <form class="d-inline" method="post" action="/admin/users/<%= u.id %>/delete"><button class="btn btn-sm btn-danger">Delete</button></form>

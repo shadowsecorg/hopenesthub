@@ -212,11 +212,32 @@ router.get('/admin/users', requireRolePage('admin', '/admin/login'), async (req,
       if (roleIdFilter) where.role_id = roleIdFilter;
     }
     if (status) where.status = status;
-    const users = await db.User.findAll({ where, attributes: { exclude: ['password_hash'] }, include: [{ model: db.Role, attributes: ['id', 'name'] }], order: [['id', 'ASC']] });
+    const users = await db.User.findAll({ where, attributes: { exclude: ['password_hash'] }, include: [
+      { model: db.Role, attributes: ['id', 'name'] },
+      { model: db.Patient, attributes: ['id'] }
+    ], order: [['id', 'ASC']] });
     res.render('admin/users', { layout: 'layouts/admin_layout', active: 'users', title: 'User Management', users, roles });
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
     res.status(500).send(err.message);
+  }
+});
+
+// Admin: create patient profile for a specific user (if they have patient role)
+router.post('/admin/users/:id/create-patient', requireRolePage('admin', '/admin/login'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const user = await db.User.findByPk(id);
+    if (!user) return res.status(404).send('User not found');
+    const role = await db.Role.findByPk(user.role_id);
+    if (!role || String(role.name).toLowerCase() !== 'patient') {
+      return res.status(400).send('User is not a patient role');
+    }
+    await db.Patient.findOrCreate({ where: { user_id: id }, defaults: { user_id: id } });
+    return res.redirect('/admin/users');
+  } catch (err) {
+    if (wantsJson(req)) return res.status(500).json({ error: err.message });
+    return res.status(500).send(err.message);
   }
 });
 
@@ -239,7 +260,14 @@ router.post('/admin/users', requireRolePage('admin', '/admin/login'), async (req
       const r = await db.Role.findOne({ where: { name: role } });
       if (r) roleIdFinal = r.id;
     }
-    await db.User.create({ name, email, role_id: roleIdFinal, status: status || 'active', password_hash });
+    const user = await db.User.create({ name, email, role_id: roleIdFinal, status: status || 'active', password_hash });
+    // Auto-create Patient profile if role is patient
+    if (roleIdFinal) {
+      const r = await db.Role.findByPk(roleIdFinal);
+      if (r && String(r.name).toLowerCase() === 'patient') {
+        await db.Patient.findOrCreate({ where: { user_id: user.id }, defaults: { user_id: user.id } });
+      }
+    }
     res.redirect('/admin/users');
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -264,6 +292,13 @@ router.post('/admin/users/:id/update', requireRolePage('admin', '/admin/login'),
       if (r) roleIdFinal = r.id;
     }
     await db.User.update({ name, email, role_id: roleIdFinal, status }, { where: { id: req.params.id } });
+    // Ensure patient profile exists if switched to patient
+    if (roleIdFinal) {
+      const r = await db.Role.findByPk(roleIdFinal);
+      if (r && String(r.name).toLowerCase() === 'patient') {
+        await db.Patient.findOrCreate({ where: { user_id: req.params.id }, defaults: { user_id: req.params.id } });
+      }
+    }
     res.redirect('/admin/users');
   } catch (err) {
     if (wantsJson(req)) return res.status(500).json({ error: err.message });
@@ -832,12 +867,29 @@ router.post('/admin/settings/roles', requireRolePage('admin', '/admin/login'), a
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
+// Admin: backfill patients for users with patient role
+router.post('/admin/tools/backfill-patients', requireRolePage('admin', '/admin/login'), async (req, res) => {
+  try {
+    const patientRole = await db.Role.findOne({ where: { name: 'patient' } });
+    if (!patientRole) return respondOk(req, res, '/admin/settings', { ok: true, created: 0 });
+    const users = await db.User.findAll({ where: { role_id: patientRole.id }, attributes: ['id'] });
+    let created = 0;
+    for (const u of users) {
+      // eslint-disable-next-line no-await-in-loop
+      const [row, wasCreated] = await db.Patient.findOrCreate({ where: { user_id: u.id }, defaults: { user_id: u.id } });
+      if (wasCreated) created += 1;
+    }
+    return respondOk(req, res, '/admin/patients', { ok: true, created });
+  } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
+});
+
 router.post('/admin/settings/roles/:id/update', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name, permissions } = req.body;
     let parsedPerms = {};
     try { parsedPerms = permissions ? JSON.parse(permissions) : {}; } catch (_) { parsedPerms = {}; }
     await db.Role.update({ name, permissions: parsedPerms }, { where: { id: req.params.id } });
+    // No immediate backfill here; role change on Role entity won't auto-move users
     return respondOk(req, res, '/admin/settings');
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
