@@ -867,22 +867,6 @@ router.post('/admin/settings/roles', requireRolePage('admin', '/admin/login'), a
   } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
 });
 
-// Admin: backfill patients for users with patient role
-router.post('/admin/tools/backfill-patients', requireRolePage('admin', '/admin/login'), async (req, res) => {
-  try {
-    const patientRole = await db.Role.findOne({ where: { name: 'patient' } });
-    if (!patientRole) return respondOk(req, res, '/admin/settings', { ok: true, created: 0 });
-    const users = await db.User.findAll({ where: { role_id: patientRole.id }, attributes: ['id'] });
-    let created = 0;
-    for (const u of users) {
-      // eslint-disable-next-line no-await-in-loop
-      const [row, wasCreated] = await db.Patient.findOrCreate({ where: { user_id: u.id }, defaults: { user_id: u.id } });
-      if (wasCreated) created += 1;
-    }
-    return respondOk(req, res, '/admin/patients', { ok: true, created });
-  } catch (err) { if (wantsJson(req)) return res.status(500).json({ error: err.message }); res.status(500).send(err.message); }
-});
-
 router.post('/admin/settings/roles/:id/update', requireRolePage('admin', '/admin/login'), async (req, res) => {
   try {
     const { name, permissions } = req.body;
