@@ -989,11 +989,7 @@ router.get('/caregiver/api/dashboard', requireRolePage('caregiver', '/caregiver/
 router.get('/caregiver/patient-list', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {
     const caregiverId = await resolveCaregiverUserId(req);
-    const assignedIds = await getAssignedPatientIds(caregiverId);
-    const Op = db.Sequelize.Op;
-    const wherePatients = (Array.isArray(assignedIds) && assignedIds.length) ? { id: { [Op.in]: assignedIds } } : { id: -1 };
     const patients = await db.Patient.findAll({ 
-      where: wherePatients,
       include: [
         { 
           model: db.User, 
