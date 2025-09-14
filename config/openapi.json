@@ -139,7 +139,68 @@
     },
     "/patients/{id}/symptoms": {
       "parameters": [ { "$ref": "#/components/parameters/patientId" } ],
-      "post": { "tags": ["Symptoms"], "summary": "Add symptom", "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SymptomInput" } } } }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Symptom" } } } } } },
+      "post": {
+        "tags": ["Symptoms"],
+        "summary": "Add symptom(s)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/SymptomInput" },
+                  { "$ref": "#/components/schemas/SymptomBulkInput" },
+                  { "$ref": "#/components/schemas/SymptomMapInput" }
+                ]
+              },
+              "examples": {
+                "single": {
+                  "summary": "Single symptom",
+                  "value": { "type": "Headache", "severity": 5, "notes": "Throbbing after work" }
+                },
+                "array": {
+                  "summary": "Array of symptoms",
+                  "value": {
+                    "items": [
+                      { "type": "Nausea", "severity": 2 },
+                      { "type": "Fatigue", "severity": 3 },
+                      { "type": "Pain", "severity": 1 },
+                      { "type": "Headache", "severity": 4 },
+                      { "type": "Insomnia", "severity": 2 },
+                      { "type": "Anxiety", "severity": 3 }
+                    ],
+                    "notes": "Daily symptom log",
+                    "recorded_at": "2025-10-26T08:00:00Z"
+                  }
+                },
+                "map": {
+                  "summary": "Map of symptoms",
+                  "value": {
+                    "symptoms": { "Nausea": 2, "Fatigue": 3, "Pain": 1, "Headache": 4, "Insomnia": 2, "Anxiety": 3 },
+                    "notes": "Daily symptom log",
+                    "recorded_at": "2025-10-26T08:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/Symptom" },
+                    { "type": "array", "items": { "$ref": "#/components/schemas/Symptom" } }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "get": { "tags": ["Symptoms"], "summary": "List symptoms", "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Symptom" } } } } } } }
     },
     "/patients/{id}/emotions": {
@@ -286,7 +347,7 @@
       "patientId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Patient ID" },
       "caregiverId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Caregiver ID" },
       "doctorId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Doctor ID" },
-      "deviceId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Device ID" },
+      "deviceId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Device ID (numeric wearable_devices.id or string device_id)" },
       "notificationId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Notification ID" },
       "reminderId": { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Reminder ID" },
       "pid": { "name": "pid", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Patient ID (nested)" },
@@ -392,6 +453,26 @@
           "type": { "type": "string" },
           "severity": { "type": "integer", "minimum": 1, "maximum": 10 },
           "notes": { "type": "string" }
+        }
+      },
+      "SymptomBulkInput": {
+        "type": "object",
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/SymptomInput" } },
+          "notes": { "type": "string" },
+          "recorded_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SymptomMapInput": {
+        "type": "object",
+        "properties": {
+          "symptoms": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 10 },
+            "example": { "Nausea": 2, "Fatigue": 3, "Pain": 1, "Headache": 4, "Insomnia": 2, "Anxiety": 3 }
+          },
+          "notes": { "type": "string" },
+          "recorded_at": { "type": "string", "format": "date-time" }
         }
       },
       "Symptom": {
@@ -529,16 +610,22 @@
 
       "DeviceRegisterInput": {
         "type": "object",
-        "required": ["type"],
+        "required": ["device_type", "device_id"],
         "properties": {
-          "type": { "type": "string" },
-          "serial": { "type": "string" }
+          "device_type": { "type": "string", "example": "google-fit" },
+          "device_id": { "type": "string", "example": "GF-USER-12345" },
+          "user_id": { "type": "integer", "description": "Optional when authenticated; otherwise required" }
         }
       },
       "DeviceSyncInput": {
         "type": "object",
         "properties": {
-          "payload": { "type": "object", "additionalProperties": true }
+          "payload": {
+            "oneOf": [
+              { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+              { "type": "object", "additionalProperties": true }
+            ]
+          }
         }
       },
       "SyncResult": {
@@ -552,8 +639,11 @@
         "type": "object",
         "properties": {
           "id": { "type": "integer" },
-          "type": { "type": "string" },
-          "serial": { "type": "string" }
+          "user_id": { "type": "integer" },
+          "device_type": { "type": "string" },
+          "device_id": { "type": "string" },
+          "status": { "type": "string" },
+          "last_sync": { "type": "string", "format": "date-time" }
         }
       },
 
