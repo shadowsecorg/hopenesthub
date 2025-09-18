@@ -120,20 +120,32 @@
           </div>
         </div>
         <hr>
-        <h6>Symptoms and Emotions History</h6>
-        <div class="table-responsive">
-          <table class="table table-striped" id="dSE">
+        <h6>Symptoms History</h6>
+        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+          <table class="table table-striped" id="dSymptoms">
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Symptom</th>
+                <th>Summary</th>
+                <th>Notes</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h6 class="mt-3">Emotions History</h6>
+        <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+          <table class="table table-striped" id="dEmotions">
+            <thead>
+              <tr>
+                <th>Date</th>
                 <th>Emotion</th>
+                <th>Intensity</th>
                 <th>Notes</th>
               </tr>
             </thead>
-            <tbody>
-
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
         <hr>
@@ -160,6 +172,22 @@
     const key = String(s || '').toLowerCase();
     return map[key] || 'Stable';
   }
+  function formatDateTime(dt) {
+    const d = new Date(dt);
+    return d.toISOString().replace('T',' ').slice(0,16);
+  }
+  function groupSymptoms(symptoms) {
+    const groups = {};
+    (symptoms || []).forEach(s => {
+      const key = new Date(s.recorded_at).toISOString().slice(0,16);
+      if (!groups[key]) groups[key] = { recorded_at: s.recorded_at, notes: s.notes || '', items: [] };
+      groups[key].items.push({ type: s.symptom_type || '-', severity: Number(s.severity || 0) });
+      if (!groups[key].notes && s.notes) groups[key].notes = s.notes;
+    });
+    const arr = Object.entries(groups).map(([k, v]) => ({ key: k, recorded_at: v.recorded_at, notes: v.notes || '-', items: v.items }));
+    arr.sort((a,b)=>new Date(b.recorded_at)-new Date(a.recorded_at));
+    return arr;
+  }
 
   document.querySelectorAll('.btn-details').forEach(btn => {
     btn.addEventListener('click', async function () {
@@ -179,20 +207,45 @@
         document.getElementById('dSleep').textContent = (sleepPct !== null) ? `${sleepPct} %` : '-';
         document.getElementById('dSteps').textContent = latest.steps ? `${latest.steps} steps` : '-';
 
-        // Populate Symptoms & Emotions & Notes history (combined)
-        const tbody = document.querySelector('#dSE tbody');
-        if (tbody) {
-          const rows = [];
-          (data.symptoms || []).forEach(s => rows.push({ date: s.recorded_at, symptom: s.symptom_type || '-', emotion: '-', notes: s.notes || '-' }));
-          (data.emotions || []).forEach(e => rows.push({ date: e.recorded_at, symptom: '-', emotion: e.emotion_type || '-', notes: e.notes || '-' }));
-          (data.notes || []).forEach(n => rows.push({ date: n.created_at, symptom: '-', emotion: '-', notes: (n.content || '').toString().slice(0, 120) }));
-          rows.sort((a,b)=>new Date(b.date)-new Date(a.date));
-          tbody.innerHTML = '';
-          rows.slice(0, 10).forEach(row => {
+        // Populate Symptoms (grouped) table
+        const sBody = document.querySelector('#dSymptoms tbody');
+        if (sBody) {
+          const groups = groupSymptoms(data.symptoms || []);
+          sBody.innerHTML = '';
+          groups.forEach((g, idx) => {
             const tr = document.createElement('tr');
-            const d = new Date(row.date);
-            tr.innerHTML = `<td>${d.toISOString().slice(0, 10)}</td><td>${row.symptom}</td><td>${row.emotion}</td><td>${row.notes}</td>`;
-            tbody.appendChild(tr);
+            const summary = `${g.items.length} items`;
+            const notes = (g.notes || '-').toString().slice(0, 120);
+            tr.innerHTML = `<td>${formatDateTime(g.recorded_at)}</td><td>${summary}</td><td>${notes}</td><td><button class="btn btn-sm btn-info text-white btn-symptom-details" data-key="${g.key}">Details</button></td>`;
+            sBody.appendChild(tr);
+          });
+          // Limit visible rows to 5 via container scroll; rows are all rendered for scrolling
+          // Attach click handlers for details
+          const showDetails = (key) => {
+            const g = (groupSymptoms(data.symptoms || [])).find(x => x.key === key);
+            if (!g) return;
+            const list = g.items.map(it => `<li class="list-group-item d-flex justify-content-between"><span>${it.type}</span><span class="badge bg-secondary">${it.severity}</span></li>`).join('');
+            const modalTitle = document.getElementById('symptomGroupModalLabel');
+            const modalBody = document.getElementById('symptomGroupModalBody');
+            if (modalTitle) modalTitle.textContent = `Symptoms - ${formatDateTime(g.recorded_at)}`;
+            if (modalBody) modalBody.innerHTML = `<div class="mb-2"><strong>Notes:</strong> ${(g.notes||'-')}</div><ul class="list-group">${list}</ul>`;
+            const m = new bootstrap.Modal(document.getElementById('symptomGroupModal'));
+            m.show();
+          };
+          sBody.querySelectorAll('.btn-symptom-details').forEach(b => {
+            b.addEventListener('click', () => showDetails(b.getAttribute('data-key')));
+          });
+        }
+
+        // Populate Emotions table
+        const eBody = document.querySelector('#dEmotions tbody');
+        if (eBody) {
+          const rows = (data.emotions || []).slice().sort((a,b)=>new Date(b.recorded_at)-new Date(a.recorded_at));
+          eBody.innerHTML = '';
+          rows.forEach(e => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${formatDateTime(e.recorded_at)}</td><td>${e.emotion_type || '-'}</td><td>${Number(e.intensity||0)}</td><td>${(e.notes||'-').toString().slice(0, 120)}</td>`;
+            eBody.appendChild(tr);
           });
         }
 
@@ -231,4 +284,19 @@
     });
   });
 </script>
+<!-- Symptom group details modal -->
+<div class="modal fade" id="symptomGroupModal" tabindex="-1" aria-labelledby="symptomGroupModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="symptomGroupModalLabel">Symptoms</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="symptomGroupModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+  </div>
 <script src="/frontend/admin-panel/script.js"></script>

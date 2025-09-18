@@ -1055,6 +1055,34 @@ router.get('/caregiver/under-care', requireRolePage('caregiver', '/caregiver/log
   } catch (err) { res.status(500).send(err.message); }
 });
 
+// Caregiver: patient details (symptoms/emotions/notes/metrics/alerts)
+router.get('/caregiver/api/patients/:id/details', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
+  try {
+    const patientId = parseInt(req.params.id, 10);
+    if (!patientId) return res.status(400).json({ error: 'invalid patient id' });
+
+    // Authorization: ensure patient is assigned to this caregiver (if caregiver has any assignment)
+    const caregiverUserId = await resolveCaregiverUserId(req);
+    const assignedIds = await getAssignedPatientIds(caregiverUserId);
+    if (Array.isArray(assignedIds) && assignedIds.length && !assignedIds.includes(patientId)) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+
+    const patient = await db.Patient.findOne({ where: { id: patientId }, include: [{ model: db.User, attributes: ['name', 'email'] }] });
+    if (!patient) return res.status(404).json({ error: 'not found' });
+
+    const [metrics, alerts, notes, symptoms, emotions] = await Promise.all([
+      db.HealthMetric.findAll({ where: { patient_id: patientId }, order: [['recorded_at', 'DESC']], limit: 20 }),
+      db.AiAlert.findAll({ where: { patient_id: patientId }, order: [['created_at', 'DESC']], limit: 10 }),
+      db.DoctorNote.findAll({ where: { patient_id: patientId }, order: [['created_at', 'DESC']], limit: 10 }),
+      db.Symptom.findAll({ where: { patient_id: patientId }, order: [['recorded_at', 'DESC']], limit: 100 }),
+      db.Emotion.findAll({ where: { patient_id: patientId }, order: [['recorded_at', 'DESC']], limit: 20 })
+    ]);
+
+    return res.json({ patient, metrics, alerts, notes, symptoms, emotions });
+  } catch (err) { return res.status(500).json({ error: err.message }); }
+});
+
 // API to get metrics for a patient for charts
 router.get('/caregiver/api/metrics', requireRolePage('caregiver', '/caregiver/login'), async (req, res) => {
   try {

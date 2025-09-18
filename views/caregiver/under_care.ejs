@@ -46,3 +46,94 @@
 </div>
 
 
+<div class="card p-3">
+  <h6>Symptoms History</h6>
+  <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+    <table class="table table-striped" id="cgSymptoms">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Summary</th>
+          <th>Notes</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <h6 class="mt-3">Emotions History</h6>
+  <div class="table-responsive" style="max-height: 260px; overflow-y: auto;">
+    <table class="table table-striped" id="cgEmotions">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Emotion</th>
+          <th>Intensity</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="cgSymptomGroupModal" tabindex="-1" aria-labelledby="cgSymptomGroupModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cgSymptomGroupModalLabel">Symptoms</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="cgSymptomGroupModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    function formatDateTime(dt){ const d=new Date(dt); return d.toISOString().replace('T',' ').slice(0,16); }
+    function groupSymptoms(symptoms){
+      const groups={};
+      (symptoms||[]).forEach(s=>{ const key=new Date(s.recorded_at).toISOString().slice(0,16); if(!groups[key]) groups[key]={ recorded_at:s.recorded_at, notes:s.notes||'', items:[]}; groups[key].items.push({ type:s.symptom_type||'-', severity:Number(s.severity||0)}); if(!groups[key].notes && s.notes) groups[key].notes=s.notes; });
+      return Object.entries(groups).map(([k,v])=>({ key:k, recorded_at:v.recorded_at, notes:v.notes||'-', items:v.items })).sort((a,b)=>new Date(b.recorded_at)-new Date(a.recorded_at));
+    }
+    async function loadPatientDetails(pid){
+      if(!pid){ document.querySelector('#cgSymptoms tbody').innerHTML=''; document.querySelector('#cgEmotions tbody').innerHTML=''; return; }
+      const r = await fetch(`/caregiver/api/patients/${pid}/details?format=json`);
+      const data = await r.json();
+      const sBody = document.querySelector('#cgSymptoms tbody');
+      const eBody = document.querySelector('#cgEmotions tbody');
+      sBody.innerHTML=''; eBody.innerHTML='';
+      const groups = groupSymptoms(data.symptoms||[]);
+      groups.forEach(g=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${formatDateTime(g.recorded_at)}</td><td>${g.items.length} items</td><td>${(g.notes||'-').toString().slice(0,120)}</td><td><button class="btn btn-sm btn-info text-white cg-btn-symptom" data-key="${g.key}">Details</button></td>`;
+        sBody.appendChild(tr);
+      });
+      const showDetails=(key)=>{
+        const g = (groupSymptoms(data.symptoms||[])).find(x=>x.key===key); if(!g) return;
+        const list = g.items.map(it=>`<li class=\"list-group-item d-flex justify-content-between\"><span>${it.type}</span><span class=\"badge bg-secondary\">${it.severity}</span></li>`).join('');
+        document.getElementById('cgSymptomGroupModalLabel').textContent = `Symptoms - ${formatDateTime(g.recorded_at)}`;
+        document.getElementById('cgSymptomGroupModalBody').innerHTML = `<div class=\"mb-2\"><strong>Notes:</strong> ${(g.notes||'-')}</div><ul class=\"list-group\">${list}</ul>`;
+        const m = new bootstrap.Modal(document.getElementById('cgSymptomGroupModal')); m.show();
+      };
+      sBody.querySelectorAll('.cg-btn-symptom').forEach(b=>{ b.addEventListener('click',()=>showDetails(b.getAttribute('data-key'))); });
+
+      (data.emotions||[]).slice().sort((a,b)=>new Date(b.recorded_at)-new Date(a.recorded_at)).forEach(e=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `<td>${formatDateTime(e.recorded_at)}</td><td>${e.emotion_type||'-'}</td><td>${Number(e.intensity||0)}</td><td>${(e.notes||'-').toString().slice(0,120)}</td>`;
+        eBody.appendChild(tr);
+      });
+    }
+    const sel=document.getElementById('underCarePatientFilter');
+    if (sel) {
+      sel.addEventListener('change', function(){ const v=this.value.replace('PT',''); const id=parseInt(v,10)||null; loadPatientDetails(id); });
+      // preload first patient
+      const first = sel.options && sel.options.length>1 ? sel.options[1].value : '';
+      if (first) { sel.value = first; sel.dispatchEvent(new Event('change')); }
+    }
+  })();
+</script>
